@@ -15,6 +15,7 @@
 | 400 | 요청 값이 규칙에 맞지 않음 |
 | 403 | 권한 없음 (남의 메모·댓글 삭제) |
 | 404 | 건물·메모·댓글이 없음 |
+| 422 | 내용 검사에서 거절됨 (아래 "내용 검사") |
 
 ## 사용자 구분 (기기 ID)
 
@@ -51,7 +52,8 @@
   "createdAt": "2026-10-06T05:12:30Z",
   "likeCount": 3,
   "commentCount": 2,
-  "likedByMe": false
+  "likedByMe": false,
+  "status": "visible"
 }
 ```
 
@@ -60,6 +62,8 @@
 - 작성 기기 ID(`deviceId`)는 서버에만 저장하고 **응답에는 넣지 않습니다**
 - `likeCount`: 좋아요 수, `commentCount`: 댓글 수
 - `likedByMe`: 요청에 `X-Device-Id` 헤더가 있고 그 기기가 좋아요를 눌렀으면 `true`. 헤더가 없으면 항상 `false`
+- `status`: `"visible"`(모두에게 보임) 또는 `"pending"`(검토 대기, 아래 "내용 검사")
+- `commentCount` 는 `visible` 댓글만 셉니다
 
 ### Comment
 
@@ -69,12 +73,39 @@
   "memoId": "6f1c2e0a-3b7d-4c55-9a1e-2f8b9d0c7e41",
   "author": "민지",
   "text": "저도 봤어요! 2층 자판기는 돼요",
-  "createdAt": "2026-10-06T06:01:10Z"
+  "createdAt": "2026-10-06T06:01:10Z",
+  "status": "visible"
 }
 ```
 
 - 댓글은 글만 씁니다 (사진 없음)
 - 작성 기기 ID 는 메모와 같이 응답에 넣지 않습니다
+- `status`: Memo 와 같음
+
+## 내용 검사 (AI 필터)
+
+메모(글·사진)와 댓글(글)을 저장하기 전에 서버가 AI 로 검사합니다. 앱은 따로 할 일이 없고, 결과에 따라 응답만 다르게 처리합니다.
+
+**거절하는 내용**
+
+| `reason` | 내용 |
+| --- | --- |
+| `abusive` | 욕설·비하·혐오·성적인 내용 (사진 포함) |
+| `personal_info` | 전화번호·이메일·학번 같은 개인정보, 실명을 지목한 비방 (사진 속 개인정보 포함) |
+| `advertising` | 광고·홍보·판매·외부 링크 홍보 |
+
+**검사 결과별 응답**
+
+| 결과 | 응답 | 앱이 할 일 |
+| --- | --- | --- |
+| 통과 | `201`, `status: "visible"` | 평소처럼 목록에 넣기 |
+| 거절 | `422 {"error": "사용자에게 보여 줄 문구", "reason": "personal_info"}` · 저장 안 함 | `error` 문구를 그대로 보여 주고, 사용자가 고쳐서 다시 쓸 수 있게 입력 내용 유지 |
+| 애매함 | `201`, `status: "pending"` · 저장하지만 **다른 사람에게는 안 보임** | "검토 후 공개돼요" 안내. 내 목록에는 보임 |
+
+- `error` 예: `"전화번호 같은 개인정보가 있어 올릴 수 없어요."`
+- **검토 대기(`pending`)** 메모·댓글은 작성한 기기(`X-Device-Id` 가 같은 요청)에만 목록·조회에 나오고, 다른 기기에는 없는 것처럼(목록에서 빠짐, 단건 `404`) 처리됩니다. 좋아요·댓글은 `visible` 메모에만 달 수 있습니다.
+- 관리자가 검토해서 공개하면 `visible` 이 되고, 거절하면 삭제됩니다 (아래 "관리자 API").
+- **AI 가 응답하지 않거나 느리면**(시간 초과) 금지어 목록과 전화번호·이메일 패턴으로 대신 검사합니다. 걸리면 거절, 아니면 통과입니다. 이때 사진은 검사하지 않습니다. 그래서 AI 장애가 있어도 작성은 막히지 않습니다.
 
 ## API
 
@@ -99,7 +130,7 @@
 | `limit` | 20 | 1~50. 범위를 벗어나면 가까운 값으로 맞춤 |
 | `before` | 없음 | 이 시각보다 이전 메모만 (다음 페이지 불러오기용, 마지막 메모의 `createdAt` 을 넣음) |
 
-헤더 `X-Device-Id` 를 보내면 각 메모의 `likedByMe` 가 채워집니다 (선택).
+헤더 `X-Device-Id` 를 보내면 각 메모의 `likedByMe` 가 채워지고, 그 기기가 쓴 검토 대기 메모도 함께 나옵니다 (선택).
 
 `200 Memo[]` (메모가 없으면 `[]`) / `404` 없는 건물
 
@@ -114,13 +145,14 @@
 | `deviceId` | 예 | 1~64자. 앱이 기기마다 한 번 만들어 저장해 둔 값 (삭제 권한 확인용) |
 | `photo` | 아니오 | JPEG 또는 PNG, 10MB 이하 |
 
-- 성공: `201 Memo`, `Location: /api/memos/{id}` 헤더
-- 실패: `400` (규칙 위반, 어떤 필드가 왜 틀렸는지 `error` 에), `404` 없는 건물
+- 성공: `201 Memo`, `Location: /api/memos/{id}` 헤더. 검토 대기면 `status: "pending"`
+- 실패: `400` (규칙 위반, 어떤 필드가 왜 틀렸는지 `error` 에), `404` 없는 건물, `422` 내용 검사 거절 (`error`, `reason`)
+- 글과 사진을 함께 검사합니다 (위 "내용 검사")
 - 사진은 `wwwroot/photos/{메모 id}.{jpg|png}` 로 저장하고 `photoUrl` 을 `/photos/{파일 이름}` 으로 채웁니다
 
 ### GET /api/memos/{memoId}
 
-메모 하나. 헤더 `X-Device-Id` 를 보내면 `likedByMe` 가 채워집니다 (선택). `200 Memo` / `404`
+메모 하나. 헤더 `X-Device-Id` 를 보내면 `likedByMe` 가 채워집니다 (선택). `200 Memo` / `404` (없거나, 남이 쓴 검토 대기 메모)
 
 ### DELETE /api/memos/{memoId}
 
@@ -154,6 +186,8 @@
 | `limit` | 50 | 1~100. 범위를 벗어나면 가까운 값으로 맞춤 |
 | `after` | 없음 | 이 시각보다 나중 댓글만 (다음 페이지, 마지막 댓글의 `createdAt` 을 넣음) |
 
+헤더 `X-Device-Id` 를 보내면 그 기기가 쓴 검토 대기 댓글도 함께 나옵니다 (선택).
+
 `200 Comment[]` (댓글이 없으면 `[]`) / `404` 없는 메모
 
 ### POST /api/memos/{memoId}/comments
@@ -170,8 +204,8 @@
 | `text` | 예 | 앞뒤 공백 제거 후 1~200자 |
 | `deviceId` | 예 | 1~64자 |
 
-- 성공: `201 Comment`, `Location: /api/comments/{id}` 헤더
-- 실패: `400` (규칙 위반, 어떤 필드가 왜 틀렸는지 `error` 에), `404` 없는 메모
+- 성공: `201 Comment`, `Location: /api/comments/{id}` 헤더. 검토 대기면 `status: "pending"`
+- 실패: `400` (규칙 위반, 어떤 필드가 왜 틀렸는지 `error` 에), `404` 없는 메모, `422` 내용 검사 거절 (`error`, `reason`)
 
 ### DELETE /api/comments/{commentId}
 
@@ -183,6 +217,20 @@
 ### GET /photos/{fileName}
 
 업로드된 사진 파일 (정적 파일).
+
+## 관리자 API (검토 대기 처리, 앱과 무관)
+
+운영자가 검토 대기 메모·댓글을 공개하거나 지웁니다. 헤더 `X-Admin-Key` 가 서버 설정 `Admin:Key` 와 같아야 하고, 다르면 `403` 입니다. 서버에 `Admin:Key` 가 설정되지 않았으면 관리자 API 는 꺼져 있습니다 (`404`).
+
+| 요청 | 하는 일 | 응답 |
+| --- | --- | --- |
+| `GET /api/admin/pending` | 검토 대기 목록 (오래된 순) | `200 {"memos": PendingMemo[], "comments": PendingComment[]}` |
+| `POST /api/admin/memos/{id}/approve` | 메모 공개 | `200 Memo` (`status: "visible"`) |
+| `DELETE /api/admin/memos/{id}` | 메모 거절 (사진·좋아요·댓글과 함께 삭제) | `204` |
+| `POST /api/admin/comments/{id}/approve` | 댓글 공개 | `200 Comment` |
+| `DELETE /api/admin/comments/{id}` | 댓글 거절 (삭제) | `204` |
+
+`PendingMemo`·`PendingComment` 는 Memo·Comment 에 검사 메모 `flagNote`(AI 가 애매하다고 본 이유) 가 더해진 모양입니다.
 
 ## 웹 페이지 (앱과 무관, 브라우저용)
 
