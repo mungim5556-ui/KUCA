@@ -25,6 +25,15 @@ public class Memo
     /// <summary>작성 시각 (UTC)</summary>
     public DateTime CreatedAt { get; set; }
 
+    /// <summary>좋아요 수</summary>
+    public int LikeCount { get; set; }
+
+    /// <summary>댓글 수</summary>
+    public int CommentCount { get; set; }
+
+    /// <summary>요청한 기기(X-Device-Id)가 좋아요를 눌렀는지. 헤더가 없으면 false.</summary>
+    public bool LikedByMe { get; set; }
+
     /// <summary>작성한 기기 ID. 삭제 권한 확인용으로 서버에만 저장하고 API 응답에는 내보내지 않는다.</summary>
     [JsonIgnore]
     public string DeviceId { get; set; } = "";
