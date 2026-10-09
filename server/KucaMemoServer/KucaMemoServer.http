@@ -40,3 +40,24 @@ GET {{host}}/api/memos/여기에-메모-id
 ### (4단계) 메모 삭제: 작성할 때와 같은 deviceId 여야 204, 다르면 403
 DELETE {{host}}/api/memos/여기에-메모-id
 X-Device-Id: test-device-1
+
+### (C-1) 좋아요 누르기 / 취소 (여러 번 보내도 결과가 같다)
+PUT {{host}}/api/memos/여기에-메모-id/like
+X-Device-Id: test-device-2
+
+###
+DELETE {{host}}/api/memos/여기에-메모-id/like
+X-Device-Id: test-device-2
+
+### (C-1) 댓글 목록 (오래된 순)
+GET {{host}}/api/memos/여기에-메모-id/comments
+
+### (C-1) 댓글 쓰기 (JSON)
+POST {{host}}/api/memos/여기에-메모-id/comments
+Content-Type: application/json
+
+{ "author": "민지", "text": "저도 봤어요!", "deviceId": "test-device-2" }
+
+### (C-1) 댓글 삭제: 쓴 기기만 204, 다르면 403
+DELETE {{host}}/api/comments/여기에-댓글-id
+X-Device-Id: test-device-2

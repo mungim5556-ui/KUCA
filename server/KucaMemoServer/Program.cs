@@ -42,6 +42,7 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }))
 
 app.MapBuildingEndpoints();
 app.MapMemoEndpoints();
+app.MapReactionEndpoints();
 app.MapWebPages();
 
 app.Run();

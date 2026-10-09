@@ -91,7 +91,11 @@ public class MemoApiTests : IDisposable
         Assert.EndsWith("Z", memo.GetProperty("createdAt").GetString());
         // deviceId 는 응답에 나가면 안 된다
         Assert.False(memo.TryGetProperty("deviceId", out _));
-        Assert.Equal(6, memo.EnumerateObject().Count());
+        // 새 메모는 좋아요·댓글 0
+        Assert.Equal(0, memo.GetProperty("likeCount").GetInt32());
+        Assert.Equal(0, memo.GetProperty("commentCount").GetInt32());
+        Assert.False(memo.GetProperty("likedByMe").GetBoolean());
+        Assert.Equal(9, memo.EnumerateObject().Count());
     }
 
     [Fact]

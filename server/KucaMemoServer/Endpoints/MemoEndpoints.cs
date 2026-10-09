@@ -20,7 +20,8 @@ public static class MemoEndpoints
         var group = app.MapGroup("/api").WithTags("Memos");
 
         // 건물의 메모 목록 (최신순). ?limit=1~50 (기본 20), ?before=시각 이면 그보다 이전 메모만.
-        group.MapGet("/buildings/{buildingId}/memos", (string buildingId, int? limit, string? before,
+        // X-Device-Id 헤더를 보내면 각 메모의 likedByMe 가 채워진다.
+        group.MapGet("/buildings/{buildingId}/memos", (string buildingId, int? limit, string? before, HttpRequest request,
                                                        BuildingStore buildings, MemoStore memos) =>
         {
             if (buildings.Find(buildingId) is null)
@@ -36,7 +37,7 @@ public static class MemoEndpoints
             }
 
             int take = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
-            return Results.Ok(memos.List(buildingId, take, beforeTime));
+            return Results.Ok(memos.List(buildingId, take, beforeTime, ViewerDeviceId(request)));
         });
 
         // 메모 작성. multipart/form-data 로 author, text, deviceId, photo(선택)를 받는다.
@@ -110,11 +111,11 @@ public static class MemoEndpoints
         })
         .DisableAntiforgery();
 
-        // 메모 하나
-        group.MapGet("/memos/{memoId}", (string memoId, MemoStore memos) =>
-            memos.Find(memoId) is { } memo ? Results.Ok(memo) : MemoNotFound(memoId));
+        // 메모 하나. X-Device-Id 헤더를 보내면 likedByMe 가 채워진다.
+        group.MapGet("/memos/{memoId}", (string memoId, HttpRequest request, MemoStore memos) =>
+            memos.Find(memoId, ViewerDeviceId(request)) is { } memo ? Results.Ok(memo) : MemoNotFound(memoId));
 
-        // 메모 삭제. X-Device-Id 헤더가 작성할 때의 deviceId 와 같을 때만. 사진 파일도 함께 지운다.
+        // 메모 삭제. X-Device-Id 헤더가 작성할 때의 deviceId 와 같을 때만. 사진 파일·좋아요·댓글도 함께 지운다.
         group.MapDelete("/memos/{memoId}", (string memoId, HttpRequest request, MemoStore memos, PhotoStore photos) =>
         {
             Memo? memo = memos.Find(memoId);
@@ -131,12 +132,22 @@ public static class MemoEndpoints
         });
     }
 
-    static DateTime TruncateToMilliseconds(DateTime t) =>
+    /// <summary>
+    /// X-Device-Id 헤더 값 (앞뒤 공백 제거). 없거나 64자를 넘으면 null.
+    /// 조회에서는 likedByMe 계산에만 쓰므로 틀린 값이어도 오류 대신 "모르는 기기"로 본다.
+    /// </summary>
+    internal static string? ViewerDeviceId(HttpRequest request)
+    {
+        string id = request.Headers["X-Device-Id"].ToString().Trim();
+        return id.Length is > 0 and <= MaxDeviceIdLength ? id : null;
+    }
+
+    internal static DateTime TruncateToMilliseconds(DateTime t) =>
         new(t.Ticks - t.Ticks % TimeSpan.TicksPerMillisecond, t.Kind);
 
-    static IResult Error(int status, string message) => Results.Json(new { error = message }, statusCode: status);
+    internal static IResult Error(int status, string message) => Results.Json(new { error = message }, statusCode: status);
 
     static IResult BuildingNotFound(string id) => Error(StatusCodes.Status404NotFound, $"건물을 찾을 수 없습니다: {id}");
 
-    static IResult MemoNotFound(string id) => Error(StatusCodes.Status404NotFound, $"메모를 찾을 수 없습니다: {id}");
+    internal static IResult MemoNotFound(string id) => Error(StatusCodes.Status404NotFound, $"메모를 찾을 수 없습니다: {id}");
 }
