@@ -1,5 +1,7 @@
 # B. 앱 화면 · 게임 흐름
 
+> **v1 가이드입니다.** v2 작업은 [`v2_역할분담.md`](v2_역할분담.md) 와 [`../산책추천_v2_라운드.md`](../산책추천_v2_라운드.md) 를 따릅니다.
+
 **파일 주인:** `UI/`, `GameHUD.cs`, `CatchCameraScreen.cs`, `ArCatchRig.cs`, `PartnerBuddy.cs`, `Memo/`(앱 쪽), `GameProgress.cs`, `CollectController.cs`, `ItemCatalog.cs`, `Character/`, `SampleScene.unity`
 **먼저 읽기:** [`00_공통_AI작업가이드.md`](00_공통_AI작업가이드.md), [`../api.md`](../api.md)
 
