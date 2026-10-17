@@ -181,6 +181,7 @@ public partial class MemoBoard : MonoBehaviour
         title.text = target.DisplayName;
         subtitle.text = service.Description;
         ShowList();
+        SetBoardTab(0);
     }
 
     public void Close()
@@ -683,7 +684,7 @@ public partial class MemoBoard : MonoBehaviour
     {
         canWrite = CanWrite(out float d);
         writeButtonFace.color = canWrite ? Ink : new Color(Ink.r, Ink.g, Ink.b, 0.35f);
-        writeHint.transform.parent.gameObject.SetActive(!canWrite || locked);
+        writeHint.transform.parent.gameObject.SetActive((!canWrite || locked) && boardTab == 0);
         if (locked)
             writeHint.text = lockedCount > 0
                 ? $"아직 가 보지 않은 곳이에요  ·  {SpotDistance():F0}m 더 가면 쪽지 {lockedCount}개가 열려요"
@@ -907,7 +908,8 @@ public partial class MemoBoard : MonoBehaviour
 
         // 콜라주 (자유 배치라 레이아웃 그룹 없이 내용 높이를 직접 정한다)
         RectTransform area = UIKit.Rect(safe, "Area");
-        UIKit.StretchBetween(area, 0f, 190f);
+        UIKit.StretchBetween(area, 0f, BoardTop);
+        photoArea = area.gameObject;
         collageScroll = area.gameObject.AddComponent<ScrollRect>();
         collageScroll.horizontal = false;
         collageScroll.scrollSensitivity = 30f;
@@ -935,6 +937,7 @@ public partial class MemoBoard : MonoBehaviour
         TopBox(title.rectTransform, 40f, 70f, 150f);
         subtitle = UIKit.Text(safe, "", 26, TextAnchor.MiddleCenter, InkQuiet);
         TopBox(subtitle.rectTransform, 112f, 40f, 150f);
+        BuildBoardTabs(safe);
         writeButton = RoundButton(safe, "Write", HudIcons.MemoWrite, 96f, Ink, Color.white, OnWriteButton);
         writeButtonFace = writeButton.transform.Find("Face").GetComponent<Image>();
         Place((RectTransform)writeButton.transform, new Vector2(1f, 1f), new Vector2(-32f, -40f));

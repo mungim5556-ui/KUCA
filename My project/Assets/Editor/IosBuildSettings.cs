@@ -29,9 +29,17 @@ public static class IosBuildSettings
         proj.SetBuildProperty(framework, "SWIFT_VERSION", "5.0");
         proj.SetBuildProperty(framework, "CLANG_ENABLE_MODULES", "YES");
         string kakao = proj.AddRemotePackageReferenceAtVersionUpToNextMajor(KakaoSdkUrl, KakaoSdkVersion);
-        foreach (string product in new[] { "KakaoSDKCommon", "KakaoSDKShare", "KakaoSDKTemplate" })
+        foreach (string product in new[] { "KakaoSDKCommon", "KakaoSDKShare", "KakaoSDKTemplate", "KakaoSDKAuth", "KakaoSDKUser" })
             proj.AddRemotePackageFrameworkToProject(framework, product, kakao, false);
         proj.WriteToFile(projPath);
+
+        // Sign in with Apple: 유료 개발자 계정이 있을 때만 켠다 (무료 계정은 이 기능을 넣으면 서명이 실패한다).
+        if (AuthConfig.AppleLoginEnabled)
+        {
+            var capabilities = new ProjectCapabilityManager(projPath, "Unity-iPhone/KUCA.entitlements", null, proj.GetUnityMainTargetGuid());
+            capabilities.AddSignInWithApple();
+            capabilities.WriteToFile();
+        }
 
         string plistPath = Path.Combine(path, "Info.plist");
         var plist = new PlistDocument();

@@ -18,6 +18,16 @@ builder.Services.AddSingleton<BuildingStore>();
 builder.Services.AddSingleton<MemoStore>();
 builder.Services.AddSingleton<PhotoStore>();
 
+// 로그인 · 계정: 카카오 / Apple 로그인 확인, 경희대 메일 인증 (Kakao:AppId, Email:User/Password 설정)
+builder.Services.AddSingleton<AccountStore>();
+builder.Services.AddHttpClient<IKakaoVerifier, KakaoVerifier>(c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient<IAppleVerifier, AppleVerifier>(c => c.Timeout = TimeSpan.FromSeconds(10));
+// 인증 메일: Azure 메일(Email:ConnectionString)이 있으면 그것, 없으면 Gmail SMTP
+builder.Services.AddSingleton<AzureEmailSender>();
+builder.Services.AddSingleton<SmtpEmailSender>();
+builder.Services.AddSingleton<IEmailSender>(sp => sp.GetRequiredService<AzureEmailSender>() is { IsConfigured: true } azure
+    ? azure : sp.GetRequiredService<SmtpEmailSender>());
+
 // 쪽지·댓글 내용 검사 (AI: FactChat 게이트웨이, 키가 없거나 장애면 금지어 검사로 대체)
 // 설정: Ai:ApiKey (없으면 Recommend:ApiKey 를 같이 씀. 저장소에 넣지 않음), Ai:FilterModel 등
 builder.Services.AddHttpClient<IContentModerator, AiModerator>();
@@ -60,6 +70,7 @@ app.MapWeatherEndpoints();
 app.MapReactionEndpoints();
 app.MapRecommendEndpoints();
 app.MapNoticeEndpoints();
+app.MapAuthEndpoints();
 app.MapAdminEndpoints();
 app.MapWebPages();
 

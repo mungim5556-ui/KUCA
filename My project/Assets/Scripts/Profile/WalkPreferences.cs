@@ -16,19 +16,21 @@ public class WalkPreferences
     public int walkMinutes;
     /// <summary>3. 걷는 속도: slow · normal · fast</summary>
     public string pace = "";
-    /// <summary>4. 산책하며 하고 싶은 것 (최대 3개): photo · quiet · food · unvisited · catch · exercise</summary>
+    /// <summary>4. 산책하며 하고 싶은 것 (최대 3개): photo · quiet · food · unvisited · partner · exercise (예전 답의 catch 는 partner 로 읽는다)</summary>
     public List<string> tastes = new List<string>();
     /// <summary>5. 같이 걸을 때 분위기: chatty · some · quiet</summary>
     public string talkStyle = "";
     /// <summary>6. 몇 명이 좋은지: one · small · any</summary>
     public string groupSize = "";
+    /// <summary>7. 매칭 상대: same(동성만) · any(상관없음)</summary>
+    public string matchGender = "";
     /// <summary>yyyy-MM-dd</summary>
     public string updatedAt = "";
 
     const string Key = "walk_prefs";
 
     public bool IsComplete =>
-        walkTimes.Count > 0 && walkMinutes > 0 && pace.Length > 0 && tastes.Count > 0 && talkStyle.Length > 0 && groupSize.Length > 0;
+        walkTimes.Count > 0 && walkMinutes > 0 && pace.Length > 0 && tastes.Count > 0 && talkStyle.Length > 0 && groupSize.Length > 0 && matchGender.Length > 0;
 
     public static bool HasSaved => Load().IsComplete;
 
@@ -39,7 +41,9 @@ public class WalkPreferences
             var p = JsonUtility.FromJson<WalkPreferences>(PlayerPrefs.GetString(Key, "{}")) ?? new WalkPreferences();
             p.walkTimes ??= new List<string>();
             p.tastes ??= new List<string>();
-            p.pace ??= ""; p.talkStyle ??= ""; p.groupSize ??= ""; p.updatedAt ??= "";
+            p.pace ??= ""; p.talkStyle ??= ""; p.groupSize ??= ""; p.matchGender ??= ""; p.updatedAt ??= "";
+            int old = p.tastes.IndexOf("catch"); // v2: 포획이 없어져 "파트너와 걷기"로 바뀜
+            if (old >= 0) p.tastes[old] = "partner";
             return p;
         }
         catch (ArgumentException)

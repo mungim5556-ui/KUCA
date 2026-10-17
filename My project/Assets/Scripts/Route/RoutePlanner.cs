@@ -7,7 +7,7 @@ using UnityEngine.UI;
 /// - 산책 추천: 걸을 시간·취향을 고르면 AI(서버)가 경희스팟 코스를 짠다. 기다리는 동안 파트너가 길을 찾는 연출,
 ///   받으면 지도 아래에 장소 카드(①②③, 추천 이유)를 보여 준다. 카드를 누르면 팝업 미니맵에
 ///   지금 위치 → ①②③ 경로를 파란 선과 번호로 그리고, 그 장소의 공지(원문 링크)를 함께 보여 준다.
-/// - 장소 공지: 학교 공지 중 장소와 연결된 것.
+/// - 장소 공지는 경희스팟 메모판의 공지 탭에 있다 (MemoBoard.Notices). 여기서는 코스 카드의 공지 수와 장소 팝업에만 쓴다.
 /// 서버에 API 가 없거나 AI 가 실패하면 기기 안 기본 추천으로 바꿔서 화면이 깨지지 않는다 (HttpRouteService).
 /// </summary>
 [DefaultExecutionOrder(1000)] // 카메라가 움직인 뒤에 핀 자리를 잡는다
@@ -30,9 +30,9 @@ public class RoutePlanner : MonoBehaviour
     string serviceUrl;
 
     RectTransform canvasRect;
-    GameObject sheet, recommendPanel, noticePanel, loading, placePopup, routeUi;
-    Image[] tabFaces, timeChips, tasteChips;
-    RectTransform noticeList, cardsContent, popupNotices;
+    GameObject sheet, recommendPanel, loading, placePopup, routeUi;
+    Image[] timeChips, tasteChips;
+    RectTransform cardsContent, popupNotices;
     Text routeTitle, popupName, popupReason;
     RawImage loadingPartner;
     Button popupBoardButton;
@@ -113,7 +113,6 @@ public class RoutePlanner : MonoBehaviour
                     noticesByPlace[n.buildingId ?? ""] = l = new List<PlaceNotice>();
                 l.Add(n);
             }
-            FillNoticeList();
             if (route != null) BuildCards(); // 공지 수 표시를 맞춘다
         }));
     }
@@ -131,7 +130,6 @@ public class RoutePlanner : MonoBehaviour
         sheet.SetActive(true);
         sheet.transform.SetAsLastSibling();
         UIInputBlocker.SetModal(this, true);
-        SetTab(0);
         RefreshChips();
     }
 
@@ -139,17 +137,6 @@ public class RoutePlanner : MonoBehaviour
     {
         sheet.SetActive(false);
         UIInputBlocker.SetModal(this, loading.activeSelf || placePopup.activeSelf);
-    }
-
-    void SetTab(int tab)
-    {
-        for (int i = 0; i < tabFaces.Length; i++)
-        {
-            tabFaces[i].color = i == tab ? Ink : ChipOff;
-            tabFaces[i].GetComponentInChildren<Text>().color = i == tab ? Color.white : Ink;
-        }
-        recommendPanel.SetActive(tab == 0);
-        noticePanel.SetActive(tab == 1);
     }
 
     void RefreshChips()
@@ -513,22 +500,8 @@ public class RoutePlanner : MonoBehaviour
         UIInputBlocker.SetModal(this, sheet.activeSelf || loading.activeSelf);
     }
 
-    void FillNoticeList()
-    {
-        for (int i = noticeList.childCount - 1; i >= 0; i--)
-            Destroy(noticeList.GetChild(i).gameObject);
-        if (allNotices.Count == 0)
-        {
-            Text none = UIKit.Text(noticeList, noticeError != null ? $"{noticeError}\n잠시 뒤 다시 열어 주세요" : "장소와 관련된 공지가 아직 없어요", 30, TextAnchor.MiddleCenter, InkQuiet);
-            UIKit.Size(none, 160f);
-            return;
-        }
-        foreach (PlaceNotice n in allNotices)
-            NoticeRow(noticeList, n, true);
-    }
-
     /// <summary>공지 한 줄: (장소) 제목 · 요약 · 날짜 · 원문 보기. 누르면 원문을 연다.</summary>
-    static void NoticeRow(RectTransform parent, PlaceNotice n, bool withPlace)
+    internal static void NoticeRow(RectTransform parent, PlaceNotice n, bool withPlace)
     {
         Image row = UIKit.Image(parent, "Notice", ChipOff, raycast: true);
         row.sprite = HudIcons.Rounded;
@@ -625,7 +598,7 @@ public class RoutePlanner : MonoBehaviour
         pr.anchorMin = new Vector2(0f, 0f);
         pr.anchorMax = new Vector2(1f, 0f);
         pr.pivot = new Vector2(0.5f, 0f);
-        pr.sizeDelta = new Vector2(0f, 1260f);
+        pr.sizeDelta = new Vector2(0f, 960f);
         pr.anchoredPosition = new Vector2(0f, -40f); // 아래 둥근 모서리는 화면 밖으로
         Swallow(panel.gameObject); // 판을 눌러도 바깥(닫기)으로 전달되지 않게
 
@@ -641,21 +614,10 @@ public class RoutePlanner : MonoBehaviour
         Place(ci.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero);
         ci.rectTransform.sizeDelta = new Vector2(40f, 40f);
 
-        string[] tabs = { "산책 추천", "장소 공지" };
-        tabFaces = new Image[tabs.Length];
-        for (int i = 0; i < tabs.Length; i++)
-        {
-            int tab = i;
-            Image t = Chip(pr, tabs[i], () => SetTab(tab), 34);
-            Place(t.rectTransform, new Vector2(0f, 1f), new Vector2(50f + i * 270f, -140f));
-            t.rectTransform.sizeDelta = new Vector2(250f, 88f);
-            tabFaces[i] = t;
-        }
-
         // 산책 추천
         recommendPanel = UIKit.Rect(pr, "Recommend").gameObject;
         var rp = (RectTransform)recommendPanel.transform;
-        UIKit.StretchBetween(rp, 40f, 270f);
+        UIKit.StretchBetween(rp, 40f, 150f);
         Text q1 = UIKit.Text(rp, "얼마나 걸을까요?", 36, TextAnchor.MiddleLeft, Ink);
         q1.fontStyle = FontStyle.Bold;
         Box(q1.rectTransform, 50f, 0f, 50f, 60f);
@@ -697,14 +659,6 @@ public class RoutePlanner : MonoBehaviour
         gr.pivot = new Vector2(0.5f, 0f);
         gr.sizeDelta = new Vector2(-100f, 124f);
         gr.anchoredPosition = new Vector2(0f, 60f);
-
-        // 장소 공지
-        noticePanel = UIKit.Rect(pr, "Notices").gameObject;
-        var np = (RectTransform)noticePanel.transform;
-        UIKit.StretchBetween(np, 40f, 270f);
-        noticeList = UIKit.ScrollList(np, 18f, new RectOffset(50, 50, 0, 40));
-        Text loadingText = UIKit.Text(noticeList, "공지를 불러오는 중…", 30, TextAnchor.MiddleCenter, InkQuiet);
-        UIKit.Size(loadingText, 160f);
 
         sheet.SetActive(false);
     }

@@ -83,6 +83,8 @@ public class GameHUD : MonoBehaviour
     GameObject noticeScreen, settingsScreen;
     RectTransform noticeList, settingsList;
     InputField nicknameInput;
+    Button logoutButton, deleteAccountButton;
+    float deleteConfirmUntil; // 회원 탈퇴는 4초 안에 한 번 더 눌러야 한다
     InputField serverInput;
     Text serverStatus;
 
@@ -155,8 +157,8 @@ public class GameHUD : MonoBehaviour
 
     void Start()
     {
-        // 첫 실행: 산책 취향 체크리스트 (나중에 로그인이 생기면 로그인 직후로 옮긴다)
-        Invoke(nameof(AskPreferencesOnce), 1.5f);
+        // 로그인 (필수): 카카오/Apple → 경희대 메일 인증 → 닉네임 → 산책 취향 체크리스트
+        LoginScreen.Begin();
         if (character == null)
             character = FindAnyObjectByType<ModularCharacter>();
         if (customizer == null)
@@ -682,7 +684,6 @@ public class GameHUD : MonoBehaviour
 
     Image albumBadge, menuBadge;
 
-    void AskPreferencesOnce() => PreferenceSurvey.OpenIfNeeded();
 
     /// <summary>가운데 경희 로고 버튼의 "받을 퀘스트 보상 있음" 점</summary>
     public void SetMenuBadge(bool on)
@@ -785,6 +786,29 @@ public class GameHUD : MonoBehaviour
         SetScreen(settingsScreen, true, null);
         nicknameInput.text = PlayerPrefs.GetString(NicknameKey, "");
         RefreshServerStatus();
+        bool guest = AuthService.Current != null && AuthService.Current.isGuest;
+        UIKit.SetLabel(logoutButton, guest ? "로그인하기 (체험 끝내기)" : "로그아웃");
+        deleteAccountButton.gameObject.SetActive(AuthService.HasToken);
+        deleteConfirmUntil = 0f;
+        UIKit.SetLabel(deleteAccountButton, "회원 탈퇴");
+    }
+
+    void DeleteAccount()
+    {
+        if (Time.unscaledTime > deleteConfirmUntil)
+        {
+            deleteConfirmUntil = Time.unscaledTime + 4f;
+            UIKit.SetLabel(deleteAccountButton, "한 번 더 누르면 계정과 정보가 지워져요");
+            return;
+        }
+        deleteConfirmUntil = 0f;
+        StartCoroutine(AuthService.DeleteAccount(error =>
+        {
+            if (error != null) { Toast("탈퇴하지 못했어요: " + error); return; }
+            CloseSettings();
+            Toast("계정을 지웠어요");
+            LoginScreen.Begin();
+        }));
     }
 
     void CloseSettings() => SetScreen(settingsScreen, false, null);
@@ -827,8 +851,20 @@ public class GameHUD : MonoBehaviour
         UIKit.Size(north, 110f);
         Button prefs = UIKit.Button(optCard.transform, "산책 취향 다시 고르기", () => { CloseSettings(); PreferenceSurvey.Open(); }, UIKit.ButtonGray, 38);
         UIKit.Size(prefs, 110f);
+        Button privacy = UIKit.Button(optCard.transform, "개인정보 안내", () => { CloseSettings(); LoginScreen.ShowPrivacy(); }, UIKit.ButtonGray, 38);
+        UIKit.Size(privacy, 110f);
+        // 체험 계정이면 "로그인하기": 로그아웃하고 로그인 화면으로 (게임 진행은 기기에 있어 그대로 이어진다)
+        logoutButton = UIKit.Button(optCard.transform, "로그아웃", () =>
+        {
+            CloseSettings();
+            StartCoroutine(AuthService.Logout(LoginScreen.Begin));
+        }, UIKit.ButtonGray, 38);
+        UIKit.Size(logoutButton, 110f);
+        deleteAccountButton = UIKit.Button(optCard.transform, "회원 탈퇴", DeleteAccount, UIKit.ButtonGray, 38);
+        deleteAccountButton.GetComponentInChildren<Text>().color = new Color(0.95f, 0.45f, 0.45f);
+        UIKit.Size(deleteAccountButton, 110f);
 
-        UIKit.Size(UIKit.Text(settingsList, "KUCA · 경희대학교 캠퍼스 탐험", 28, TextAnchor.MiddleCenter, UIKit.Quiet), 80f);
+        UIKit.Size(UIKit.Text(settingsList, "KUCA · 경희대 국제캠퍼스를 함께 걷는 산책 동반자", 28, TextAnchor.MiddleCenter, UIKit.Quiet), 80f);
     }
 
     string DefaultMemoServer
@@ -884,9 +920,12 @@ public class GameHUD : MonoBehaviour
 
     void SaveNickname()
     {
-        PlayerPrefs.SetString(NicknameKey, nicknameInput.text.Trim());
+        string nick = nicknameInput.text.Trim();
+        PlayerPrefs.SetString(NicknameKey, nick);
         PlayerPrefs.Save();
         Toast("닉네임을 저장했어요");
+        if (AuthService.HasToken && nick.Length is >= 1 and <= 20)
+            StartCoroutine(AuthService.SetNickname(nick, (_, error) => { if (error != null) Toast(error); })); // 계정에도
     }
 
     // ---------- 공통 ----------

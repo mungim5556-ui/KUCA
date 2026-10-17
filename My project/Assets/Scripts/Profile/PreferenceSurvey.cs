@@ -34,11 +34,13 @@ public class PreferenceSurvey : MonoBehaviour
             { ("slow", "느긋하게", "구경하며 천천히"), ("normal", "보통", ""), ("fast", "빠르게", "운동하듯 성큼성큼") } },
         new Question { title = "산책하면서 하고 싶은 것", hint = "최대 3개까지 골라요", multi = true, max = 3, options = new[]
             { ("photo", "사진 명소", ""), ("quiet", "조용한 곳", ""), ("food", "맛집·카페", ""),
-              ("unvisited", "안 가 본 곳", ""), ("catch", "경희몬 잡기", ""), ("exercise", "운동", "") } },
+              ("unvisited", "안 가 본 곳", ""), ("partner", "파트너와 걷기", ""), ("exercise", "운동", "") } },
         new Question { title = "같이 걸을 때 분위기는요?", hint = "하나만 골라요", options = new[]
             { ("chatty", "수다 떨며", "이야기하는 게 좋아요"), ("some", "가끔 대화", "편하게 한두 마디"), ("quiet", "조용히 각자", "옆에서 같이 걷기만") } },
         new Question { title = "몇 명이서 걷는 게 좋아요?", hint = "하나만 골라요", options = new[]
             { ("one", "1:1", "한 명과 같이"), ("small", "3~4명 소그룹", "여럿이 함께"), ("any", "상관없어요", "") } },
+        new Question { title = "같이 걸을 상대는요?", hint = "하나만 골라요", options = new[]
+            { ("same", "동성만", "나와 같은 성별인 사람과만"), ("any", "상관없어요", "") } },
     };
 
     GameObject root;
@@ -76,7 +78,7 @@ public class PreferenceSurvey : MonoBehaviour
         {
             new List<string>(p.walkTimes),
             p.walkMinutes > 0 ? new List<string> { p.walkMinutes.ToString() } : new List<string>(),
-            Single(p.pace), new List<string>(p.tastes), Single(p.talkStyle), Single(p.groupSize),
+            Single(p.pace), new List<string>(p.tastes), Single(p.talkStyle), Single(p.groupSize), Single(p.matchGender),
         };
         step = 0;
         root.SetActive(true);
@@ -183,9 +185,12 @@ public class PreferenceSurvey : MonoBehaviour
             tastes = new List<string>(answers[3]),
             talkStyle = answers[4][0],
             groupSize = answers[5][0],
+            matchGender = answers[6][0],
         };
         p.Save();
         Debug.Log("[Preferences] " + p.ToJson());
+        if (AuthService.HasToken && AuthService.HasServer)
+            StartCoroutine(AuthService.SavePreferences(p, (_, error) => { if (error != null) Toast("취향을 서버에 올리지 못했어요: " + error); }));
         root.SetActive(false);
         UIInputBlocker.SetModal(this, false);
         Toast("산책 취향을 저장했어요");
