@@ -14,10 +14,11 @@ echo "== 서버 · 날씨"
 curl -sS -m 70 "$BASE/api/health"; echo
 curl -sS -m 30 "$BASE/api/weather" | J 'print("  날씨:", d.get("condition"), "출처:", d.get("source"))'
 
-echo "== 배포된 코드 (말로 하는 요청 wish 칸이 있으면 10/26 PR #82 이후)"
+echo "== 배포된 코드 (wish 칸 = 10/26 PR #82 이후, talk 칸 = 10/27 PR #91 이후: 다시 입력 안내 · 메이트 대화 코스)"
 curl -sS -m 30 "$BASE/swagger/v1/swagger.json" | J '
 p=d["components"]["schemas"]["RecommendRequest"]["properties"]
-print("  wish 칸:", "있음 (최신)" if "wish" in p else "없음 → 병합한 코드가 아직 배포 안 됨 (server/deploy-azure.sh)")'
+print("  wish 칸:", "있음" if "wish" in p else "없음")
+print("  talk 칸:", "있음 (최신)" if "talk" in p else "없음 → 병합한 코드가 아직 배포 안 됨 (server/deploy-azure.sh)")'
 
 echo "== 공지 요약 (AI 요약인지, 본문 앞 100자 자르기인지)"
 curl -sS -m 70 "$BASE/api/notices?limit=100" | J '

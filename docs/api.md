@@ -661,7 +661,9 @@ idle ──들어가기──▶ waiting ──짝 찾음──▶ proposed ─�
     "recommendationId": "rec_3b9a…", "title": "가을 오후 함께 걷는 30분", "source": "ai",
     "stops": [ { "buildingId": "way-474085534", "name": "중앙도서관", "reason": "…", "walkMinutes": 4, "distanceM": 310, "lat": 37.2421, "lon": 127.0796 } ],
     "totalDistanceM": 1450, "totalMinutes": 21,
-    "myAgree": true, "partnerAgree": false, "confirmed": false, "changesLeft": 2
+    "myAgree": true, "partnerAgree": false, "confirmed": false, "changesLeft": 2,
+    "health": { "steps": 2140, "kcalMin": 61, "kcalMax": 86, "intensity": "moderate", "intensityLabel": "보통 걷기" },
+    "difficulty": { "level": "normal", "label": "중", "hills": 0 }
   }
 }
 ```
@@ -857,6 +859,10 @@ idle ──들어가기──▶ waiting ──짝 찾음──▶ proposed ─�
   - 몸무게를 모르면 50~70kg 범위 `[가정]`, 알면 그 몸무게 ±10% `[가정]`
   - 추천은 고른 걷는 속도로, 산책 끝은 실제 빠르기(분당 70m 미만 느긋 · 85m 미만 보통 · 그 위 빠름)로 셉니다
 - `intensity`: `light`(가벼운 산책) · `moderate`(보통 걷기) · `brisk`(운동 되는 걷기)
+- **`difficulty` (난이도 하 · 중 · 상)**: 추천 응답과 함께 걷기 코스(`course`)에 붙습니다. `{ "level": "normal", "label": "중", "hills": 0 }`
+  - 하(`easy`): 1.5km 이하이고 오르막 장소 없음 · 상(`hard`): 3km 넘음, 오르막 장소 2곳 이상, 또는 오르막이 있고 2km 넘음 · 중(`normal`): 나머지 `[가정]`
+  - 오르막 장소는 `spots.json` 의 `hill` (가는 길에 힘든 오르막이 있는 곳)
+- 함께 걷기 코스의 `health` 는 몸무게를 받지 않으므로 50~70kg 범위입니다.
 - **몸무게(`weightKg`, 선택)**: 추천 요청 · 산책 끝 요청에 실어 보냅니다. 30~200, 아니면 `400`. `0` 이하는 "모름" 입니다. **서버는 저장하지 않습니다** (앱이 이 기기에만 저장, 취향 체크리스트 마지막 단계)
 
 **주간 목표 (WHO: 일주일 중간 강도 활동 150분)**

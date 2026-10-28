@@ -334,7 +334,7 @@ public partial class RoutePlanner
 
         Option o = options[chosen];
         string source = o.result.source == "ai" ? "AI 추천" : "기본 추천";
-        UIKit.Bold(UIKit.Text(chooserCards, o.variant.label, KucaTheme.Title, TextAnchor.UpperLeft, Ink));
+        UIKit.Bold(UIKit.Text(chooserCards, o.variant.label + CourseDifficulty.Tag(o.result.difficulty, KucaTheme.Label), KucaTheme.Title, TextAnchor.UpperLeft, Ink));
         UIKit.Text(chooserCards, source + (o.returns ? "  ·  출발지로 돌아오는 한 바퀴" : ""), KucaTheme.Label, TextAnchor.UpperLeft, InkQuiet);
         // 문장을 어떻게 읽었는지만 한 줄 (틀렸으면 고쳐 적게). 코스 설명은 길어서 뺌 (사용자 결정 10/27)
         if (!string.IsNullOrEmpty(o.result.wish?.summary))

@@ -67,6 +67,7 @@ class Figure:
         self.extra.ao_strength = 0.0
         self.smooth = ([], [], [])   # 법선을 직접 계산한 부품 (받침): pos, nrm, col
         self.glass = ([], [], [])    # 투명 유리 (헬멧 바이저): 따로 __glass 메시로 낸다
+        self.eye_spots = []          # (중심, 반지름): 지도용 간략화에서 빼는 눈 자리 (_reduce_extra)
         self.tier = tier
 
     def add(self, f, col, k=0.2, layer='body', metal=None):
@@ -212,6 +213,17 @@ def kawaii_eyes(fig, head_c, R, spread=24, pitch=-12, size=0.62, iris=IRIS, tall
 
 
 def eye_at(fig, f, style='round', size=0.45, iris=IRIS, side=1, tilt=0.0, lid=None):
+    """눈 하나 (_eye_at). 지도용(LOD < 1)에서도 눈은 조금 더 촘촘히: 거친 다각형이면 동공이 홍채 밖으로 삐죽 나온다"""
+    global LOD
+    keep = LOD
+    LOD = max(LOD, 0.5)
+    try:
+        _eye_at(fig, f, style, size, iris, side, tilt, lid)
+    finally:
+        LOD = keep
+
+
+def _eye_at(fig, f, style='round', size=0.45, iris=IRIS, side=1, tilt=0.0, lid=None):
     """
     한쪽 눈. f = 표면 위 좌표계 (로컬 +Z 바깥, +Y 위) — 머리가 구가 아니어도 실제 표면 점에서 만든 Frame 을 넘긴다.
     style (캐릭터 개성에 맞춰 고른다):
@@ -226,6 +238,7 @@ def eye_at(fig, f, style='round', size=0.45, iris=IRIS, side=1, tilt=0.0, lid=No
     """
     b = fig.extra
     s = size
+    fig.eye_spots.append((np.asarray(f.o, np.float64), size * 2.0))   # 흰자·눈테·눈꺼풀까지 덮는 반지름
     rot = Frame(f.o, *[tuple(c) for c in (np.array(f.x) * math.cos(math.radians(tilt * side)) + np.array(f.y) * math.sin(math.radians(tilt * side)),
                                          -np.array(f.x) * math.sin(math.radians(tilt * side)) + np.array(f.y) * math.cos(math.radians(tilt * side)),
                                          np.array(f.z))])
@@ -489,32 +502,43 @@ EXTRA_CAP = 6000   # 지도용: 눈·꽃·잔디 등 또렷한 부품의 삼각�
 
 
 def _reduce_extra(fig, cap):
-    """지도용: 또렷한 부품(fig.extra) 묶음을 cap 개 삼각형 근처로 줄인다. 색·빛남은 가장 가까운 원래 정점에서 가져온다"""
+    """지도용: 또렷한 부품(fig.extra) 묶음을 cap 개 삼각형 근처로 줄인다. 색·빛남은 가장 가까운 원래 정점에서 가져온다.
+    눈 자리(fig.eye_spots) 삼각형은 그대로 둔다: 흰자·홍채·동공·반짝임이 몇 % 간격으로 겹친 층이라 함께 줄이면
+    층이 뭉개지고 색이 바둑판처럼 섞인다 (펫 검토 v1 P1)."""
     import fast_simplification
     from scipy.spatial import cKDTree
-    P = np.asarray(fig.extra.pos, np.float64).reshape(-1, 3)
-    C = np.asarray(fig.extra.col, np.float64).reshape(-1, 3)
-    A = np.asarray(fig.extra.alpha, np.float64) if len(fig.extra.alpha) == len(P) else np.ones(len(P))
-    key = np.round(P / 0.0005).astype(np.int64)
-    uniq, inv = np.unique(key, axis=0, return_inverse=True)
-    inv = inv.ravel()
-    V = uniq * 0.0005
-    F = inv.reshape(-1, 3)
-    F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 0] != F[:, 2])]
-    V2, F2 = fast_simplification.simplify(V.astype(np.float32), F.astype(np.int32), max(0.0, 1.0 - cap / max(len(F), 1)))
-    V2 = np.asarray(V2, np.float64)
-    tri = V2[F2]
-    cen = tri.mean(axis=1)
-    _, near = cKDTree(P).query(cen)                       # 삼각형마다 가장 가까운 원래 정점의 색 (부품 경계가 섞이지 않게)
-    # 감는 방향: 원래 가까운 면과 같은 쪽
-    T0 = P.reshape(-1, 3, 3)[near // 3]
-    n0 = np.cross(T0[:, 1] - T0[:, 0], T0[:, 2] - T0[:, 0])
-    n1 = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
-    flip = np.sum(n0 * n1, axis=1) < 0
-    tri[flip] = tri[flip][:, ::-1]
-    fig.extra.pos = tri.reshape(-1).tolist()
-    fig.extra.col = np.repeat(C[near], 3, axis=0).reshape(-1).tolist()
-    fig.extra.alpha = np.repeat(A[near], 3).tolist()
+    P_all = np.asarray(fig.extra.pos, np.float64).reshape(-1, 3)
+    C_all = np.asarray(fig.extra.col, np.float64).reshape(-1, 3)
+    A_all = np.asarray(fig.extra.alpha, np.float64) if len(fig.extra.alpha) == len(P_all) else np.ones(len(P_all))
+    cen0 = P_all.reshape(-1, 3, 3).mean(axis=1)
+    keep = np.zeros(len(cen0), bool)
+    for c, r in fig.eye_spots:
+        keep |= np.linalg.norm(cen0 - c, axis=1) < r
+    kv = np.repeat(keep, 3)
+    P, C, A = P_all[~kv], C_all[~kv], A_all[~kv]
+    budget = max(cap - int(keep.sum()), cap // 3)
+    if len(P) // 3 > budget:
+        key = np.round(P / 0.0005).astype(np.int64)
+        uniq, inv = np.unique(key, axis=0, return_inverse=True)
+        inv = inv.ravel()
+        V = uniq * 0.0005
+        F = inv.reshape(-1, 3)
+        F = F[(F[:, 0] != F[:, 1]) & (F[:, 1] != F[:, 2]) & (F[:, 0] != F[:, 2])]
+        V2, F2 = fast_simplification.simplify(V.astype(np.float32), F.astype(np.int32), max(0.0, 1.0 - budget / max(len(F), 1)))
+        V2 = np.asarray(V2, np.float64)
+        tri = V2[F2]
+        cen = tri.mean(axis=1)
+        _, near = cKDTree(P).query(cen)                       # 삼각형마다 가장 가까운 원래 정점의 색 (부품 경계가 섞이지 않게)
+        # 감는 방향: 원래 가까운 면과 같은 쪽
+        T0 = P.reshape(-1, 3, 3)[near // 3]
+        n0 = np.cross(T0[:, 1] - T0[:, 0], T0[:, 2] - T0[:, 0])
+        n1 = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+        flip = np.sum(n0 * n1, axis=1) < 0
+        tri[flip] = tri[flip][:, ::-1]
+        P, C, A = tri.reshape(-1, 3), np.repeat(C[near], 3, axis=0), np.repeat(A[near], 3)
+    fig.extra.pos = np.concatenate([P, P_all[kv]]).reshape(-1).tolist()
+    fig.extra.col = np.concatenate([C, C_all[kv]]).reshape(-1).tolist()
+    fig.extra.alpha = np.concatenate([A, A_all[kv]]).tolist()
 
 
 def smooth_normals(P):

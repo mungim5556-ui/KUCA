@@ -430,8 +430,8 @@ public class MatchScreen : MonoBehaviour
             BuildStops(k);
             PopIn.Play(courseCard);
         }
-        courseTitle.text = k.title;
-        courseSummary.text = $"{k.stops.Count}곳  ·  {k.totalMinutes}분  ·  {RouteMath.Distance(k.totalDistanceM)}";
+        courseTitle.text = k.title + CourseDifficulty.Tag(k.difficulty, KucaTheme.Label);
+        courseSummary.text = CourseSummary(k);
         string partnerName = state.partner?.nickname ?? "상대";
         if (k.confirmed)
         {
@@ -448,6 +448,13 @@ public class MatchScreen : MonoBehaviour
         courseNext.gameObject.SetActive(!k.confirmed);
         courseNext.interactable = k.changesLeft > 0;
         UIKit.SetLabel(courseNext, k.changesLeft > 0 ? $"다른 코스 보기 ({k.changesLeft}번 남음)" : "다른 코스는 다 봤어요");
+    }
+
+    /// <summary>"3곳 · 21분 · 1.5km · 약 61~86kcal" (칼로리는 서버 값이 있을 때만, 대략 범위)</summary>
+    public static string CourseSummary(MatchCourse k)
+    {
+        string s = $"{k.stops.Count}곳  ·  {k.totalMinutes}분  ·  {RouteMath.Distance(k.totalDistanceM)}";
+        return HealthEstimate.Has(k.health) ? s + $"  ·  약 {k.health.kcalMin}~{k.health.kcalMax}kcal" : s;
     }
 
     /// <summary>들를 곳 줄: 초록 번호 원 · 이름(굵게) · 한 줄 이유 · 걷는 분</summary>

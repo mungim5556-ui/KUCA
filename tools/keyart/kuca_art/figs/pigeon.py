@@ -381,16 +381,18 @@ def build(fig, rng):
     fig.add(S.sphere(tuple(gp + gd * 0.02), 0.12), Fg.CRIMSON, k=0.0, layer='gem2')
     fig.add(S.sphere(tuple(gp + gd * 0.1 + Rg[:, 1] * 0.04 - Rg[:, 0] * 0.03), 0.03), (1.0, 0.75, 0.78), k=0.0, layer='gem3')
 
-    # ---- 꼬리: 등 아래에서 뒤로 뻗은 짙은 회색 깃 부채 (깃 4장, 끝이 더 짙음) ----
+    # ---- 꼬리: 등 아래에서 뒤로 벌어진 깃 부채 (깃 5장, 이웃 깃은 다른 층 + 번갈아 밝기 → 뒤에서 한 덩어리로 안 뭉침, 끝이 더 짙음) ----
     TAIL = (0.37, 0.37, 0.42)
-    for ax in (-0.75, -0.25, 0.25, 0.75):
-        a = np.array((ax * 0.35, y0 + 2.0, -1.5))
-        b = np.array((ax * 0.95, y0 + 1.2, -2.85))
+    TAIL_L = (0.47, 0.47, 0.52)
+    for i, ax in enumerate((-1.0, -0.5, 0.0, 0.5, 1.0)):
+        a = np.array((ax * 0.3, y0 + 2.05, -1.45))
+        b = np.array((ax * 1.2, y0 + 1.3 + 0.12 * abs(ax), -2.8 + 0.3 * abs(ax)))
         Rt = axis_R(b - a, (0, 1, -0.3))
-        te = S.ellipsoid(tuple((a + b) / 2), (0.44, np.linalg.norm(b - a) * 0.55, 0.19), R=Rt)
-        fig.add(te, TAIL, k=0.15, layer='tail')
-        fig.paint(lambda P, te=te: te(P) - 0.03, TAIL, soft=0.1)
-        fig.paint(masked(lambda P, b=b: np.linalg.norm(P - b, axis=1) - 0.55, lambda P, te=te: np.abs(te(P)), 0.12), (0.27, 0.27, 0.31), soft=0.3)
+        col = TAIL if i % 2 == 0 else TAIL_L
+        te = S.ellipsoid(tuple((a + b) / 2), (0.34, np.linalg.norm(b - a) * 0.56, 0.15), R=Rt)
+        fig.add(te, col, k=0.12, layer=f'tail{i % 2}')
+        fig.paint(lambda P, te=te: te(P) - 0.03, col, soft=0.1)
+        fig.paint(masked(lambda P, b=b: np.linalg.norm(P - b, axis=1) - 0.42, lambda P, te=te: np.abs(te(P)), 0.12), (0.25, 0.25, 0.29), soft=0.3)
 
     # ---- 발 (짧은 분홍 다리 + 앞발가락 3 + 뒷발가락) ----
     for s in (-1, 1):

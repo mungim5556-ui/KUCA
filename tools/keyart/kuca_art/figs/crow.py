@@ -289,16 +289,17 @@ def build(fig, rng):
             d = _dir(yaw + s * 8, -8)
             fig.add(S.capsule(ank + np.array((0, -0.12, 0)), ank + np.array((0, -0.12, 0)) + d * 0.72, 0.14, 0.09), FEET, k=0.08, layer='feet')
         fig.add(S.capsule(ank + np.array((0, -0.12, 0)), ank + np.array((0, -0.18, -0.5)), 0.12, 0.08), FEET, k=0.08, layer='feet')
-    # 날개: 어깨에서 옆·아래로 펼친 큰 깃 (어깨 덩어리 + 윗깃 3 + 첫째 깃 5), 몸 앞쪽으로 살짝 감싸게
+    # 날개: 몸 옆에 접어 붙인 깃 (어깨 덩어리 + 첫째 깃 5 + 윗깃 3). 깃 면이 옆을 보고(yaw 80) 아래·뒤로 부채,
+    # 몸 곡면을 따라 살짝 바깥으로(pitch -20) — 옆으로 뻗으면 팔처럼 보였다 (펫 검토 v1)
     for s in (-1, 1):
-        piv = np.array((s * 1.8, y0 + 3.35, 0.4))
-        fig.add(S.ellipsoid(piv + np.array((s * 0.1, -0.45, -0.1)), (0.6, 1.0, 0.5), R=S.rot(s * 20, 0, s * 28)), INK, k=0.3, layer='wing')
+        piv = np.array((s * 1.7, y0 + 3.45, -0.05))
+        fig.add(S.ellipsoid(piv + np.array((s * 0.12, -0.55, -0.1)), (0.36, 0.95, 0.78), R=S.rot(0, 0, s * 20)), INK, k=0.3, layer='wing')
         prim = []
-        for i, roll in enumerate((18, 34, 50, 66, 82)):
-            L = (1.6, 1.8, 1.75, 1.55, 1.25)[i]
-            prim.append(feather(piv, s * 18, 0, s * roll, L * 0.88, (0.34, L * 0.58, 0.12)))
+        for i, roll in enumerate((-6, 6, 17, 28, 38)):
+            L = (1.5, 1.7, 1.65, 1.45, 1.2)[i] * 0.85
+            prim.append(feather(piv, s * 80, -20, s * roll, L * 0.82, (0.36, L * 0.56, 0.12)))
         fig.add(U(prim, 0.04), INK, k=0.06, layer='wing')
-        fig.add(U([feather(piv + np.array((0, 0.05, 0.12)), s * 18, 0, s * roll, 0.85, (0.42, 0.62, 0.14)) for roll in (24, 46, 68)], 0.04),
+        fig.add(U([feather(piv + np.array((s * 0.1, 0.05, 0.05)), s * 80, -20, s * roll, 0.62, (0.42, 0.55, 0.13)) for roll in (0, 15, 30)], 0.04),
                 INK_HI, k=0.06, layer='wing')
     # 꼬리 깃 (뒤 아래로 부채꼴)
     tp = np.array((0, y0 + 1.6, -1.35))

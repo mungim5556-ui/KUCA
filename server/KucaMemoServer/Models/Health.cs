@@ -10,6 +10,9 @@ namespace KucaMemoServer.Models;
 /// <param name="StepsMeasured">true 면 걸음 수가 센서로 잰 값 (산책 끝 응답만), false 면 어림값</param>
 public record HealthEstimate(int Steps, int KcalMin, int KcalMax, string Intensity, string IntensityLabel, bool StepsMeasured = false);
 
+/// <summary>코스 난이도 (거리 · 오르막 장소 수로 나눔). Level: easy · normal · hard, Label: 하 · 중 · 상</summary>
+public record CourseDifficulty(string Level, string Label, int Hills);
+
 /// <summary>이번 주(월요일 0시, 한국 시각부터) 걸은 분과 목표 (WHO: 일주일 150분)</summary>
 public record WeekGoal(int WeekMinutes, int GoalMinutes, int MinutesLeft, int WeekWalks);
 

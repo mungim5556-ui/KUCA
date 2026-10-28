@@ -210,7 +210,8 @@ public partial class RouteRecommender(
             wish == null ? null : new RecommendWish(wish.Summary, wish.Source, wish.Minutes, wish.Want, wish.Avoid, wish.Judgment),
             why,
             HealthRules.Estimate(stops.Sum(s => s.DistanceM), stops.Sum(s => s.WalkMinutes), plan.Pace, r.WeightKg),
-            week == null ? null : HealthService.ForCourse(week, stops.Sum(s => s.WalkMinutes)));
+            week == null ? null : HealthService.ForCourse(week, stops.Sum(s => s.WalkMinutes)),
+            HealthRules.Difficulty(stops.Sum(s => s.DistanceM), stops.Count(s => spots.Find(s.BuildingId)?.Hill == true)));
         saved.Add(new RecommendationStore.Saved(result.Id, source, plan.Minutes,
             stops.Select(s => s.BuildingId).ToArray(), result.TotalDistanceM, now));
         if (countAsShown)

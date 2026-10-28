@@ -851,7 +851,8 @@ public class MatchService(
                 SmalltalkCards: m.Cards,
                 Course: m.Course is { } c
                     ? new MatchCourse(c.Id, c.Title, c.Source, c.Stops, c.TotalDistanceM, c.TotalMinutes,
-                                      me.CourseAgree, other.CourseAgree, m.CourseConfirmed, MatchRules.MaxCourseChanges - m.CourseChanges)
+                                      me.CourseAgree, other.CourseAgree, m.CourseConfirmed, MatchRules.MaxCourseChanges - m.CourseChanges,
+                                      c.Health, c.Difficulty)
                     : null);
         }
 

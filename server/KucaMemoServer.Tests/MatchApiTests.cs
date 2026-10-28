@@ -367,6 +367,10 @@ public class MatchApiTests : IDisposable
         Assert.False(course.GetProperty("confirmed").GetBoolean());
         Assert.Equal(MatchRules.MaxCourseChanges, course.GetProperty("changesLeft").GetInt32());
         Assert.Equal(S(course, "recommendationId"), S(Course(await State(b)), "recommendationId"));   // 두 사람이 같은 코스
+        // 대략 칼로리 · 난이도 (몸무게는 매칭에서 받지 않으니 50~70kg 범위)
+        JsonElement health = course.GetProperty("health");
+        Assert.True(health.GetProperty("kcalMax").GetInt32() > health.GetProperty("kcalMin").GetInt32());
+        Assert.Contains(S(course.GetProperty("difficulty"), "level"), new[] { "easy", "normal", "hard" });
 
         JsonElement mine = Course(await Send(HttpMethod.Post, $"/api/match/{id}/course/agree", a, null, HttpStatusCode.OK));
         Assert.True(mine.GetProperty("myAgree").GetBoolean());

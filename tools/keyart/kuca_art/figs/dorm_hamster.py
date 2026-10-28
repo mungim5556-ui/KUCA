@@ -84,6 +84,7 @@ def w_mouth(fig, f, w, col):
 
 def closed_eye(fig, f, s, col=(0.20, 0.11, 0.09)):
     """졸린 ∪ 감은 눈: 촘촘한 구슬로 이은 매끈한 곡선 + 바깥 끝 짧은 속눈썹"""
+    fig.eye_spots.append((np.asarray(f.o, np.float64), s * 1.3))
     for k in range(29):
         a = math.pi * k / 28
         th = math.sin(a) * 0.5 + 0.5

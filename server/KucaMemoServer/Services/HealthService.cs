@@ -72,6 +72,19 @@ public static class HealthRules
 
     public static bool ValidSteps(int? steps) => steps is null or <= MaxSteps;
 
+    /// <summary>[가정] 난이도: 이 거리 이하 · 오르막 없음이면 하, 이 거리 넘거나 오르막이 많으면 상 (m)</summary>
+    public const int EasyMaxM = 1500, HardOverM = 3000, HardWithHillOverM = 2000, HardHills = 2;
+
+    /// <summary>코스 난이도: 거리와 가는 길에 힘든 오르막이 있는 장소 수 (spots.json 의 hill)</summary>
+    public static CourseDifficulty Difficulty(int distanceM, int hills)
+    {
+        if (distanceM > HardOverM || hills >= HardHills || hills > 0 && distanceM > HardWithHillOverM)
+            return new CourseDifficulty("hard", "상", hills);
+        if (distanceM <= EasyMaxM && hills == 0)
+            return new CourseDifficulty("easy", "하", hills);
+        return new CourseDifficulty("normal", "중", hills);
+    }
+
     /// <summary>이번 주가 시작된 때 (한국 시각 월요일 0시)</summary>
     public static DateTimeOffset WeekStart(DateTimeOffset now)
     {

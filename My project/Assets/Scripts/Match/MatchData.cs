@@ -64,6 +64,10 @@ public class MatchCourse
     public int totalMinutes;
     public bool myAgree, partnerAgree, confirmed;
     public int changesLeft;
+    /// <summary>대략 칼로리 · 걸음 수 (몸무게는 매칭에서 받지 않아 50~70kg 범위). 예전 서버면 비어 있음</summary>
+    public HealthEstimate health;
+    /// <summary>난이도 하 · 중 · 상</summary>
+    public CourseDifficulty difficulty;
 }
 
 [Serializable]

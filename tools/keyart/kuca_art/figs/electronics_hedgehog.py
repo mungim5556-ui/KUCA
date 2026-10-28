@@ -6,6 +6,7 @@ import numpy as np
 
 from .. import sculpt as S
 from .. import figures as Fg
+from .pigeon import axis_R
 
 TIER = 'gold'
 
@@ -20,6 +21,8 @@ HP_W = (0.96, 0.94, 0.90)
 PCB = (0.16, 0.52, 0.24)
 CHIP = (0.13, 0.13, 0.15)
 PIN = (0.82, 0.82, 0.85)
+POUCH = (0.58, 0.59, 0.62)
+STRIPE = (0.80, 0.14, 0.18)
 
 
 def fib_dirs(n):
@@ -94,6 +97,18 @@ def build(fig, rng):
             Fg.GOLD, k=0.0, layer='trim', metal=g)
     fig.add(S.torus((0, y0 + 3.3, 0.05), 0.9, 0.14), Fg.GOLD, k=0.0, layer='trim', metal=g)
     torso = lambda P: S.smin(ball(P), chest(P), 0.45)
+    # 벨트 금 버클 + 왼가슴 금 고리 표식 + 양 엉덩이 회색 공구 주머니 (펜치 손잡이 두 개)
+    fig.add(S.box((0, y0 + 1.82, 1.34), (0.24, 0.18, 0.06), round_=0.04), Fg.GOLD, k=0.0, layer='buckle', metal=g)
+    fig.add(S.box((0, y0 + 1.82, 1.39), (0.12, 0.08, 0.03), round_=0.02), SUIT, k=0.0, layer='buckle2')
+    fig.add(S.torus((0.42, y0 + 2.78, 1.2), 0.2, 0.05, Rm=S.rot(18, 70, 0)), Fg.GOLD, k=0.0, layer='trim', metal=g)
+    for s in (-1, 1):
+        pc = np.array((s * 1.17, y0 + 1.5, 0.72))
+        Rp = S.rot(s * 55, 0, 0)
+        fig.add(S.box(tuple(pc), (0.26, 0.3, 0.15), round_=0.08, R=Rp), POUCH, k=0.0, layer='pouch')
+        fig.add(S.box(tuple(pc + Rp @ np.array((0, 0.22, 0.13))), (0.27, 0.09, 0.05), round_=0.03, R=Rp), (0.48, 0.49, 0.52), k=0.0, layer='pouch')
+        for dx in (-0.09, 0.09):
+            q = pc + Rp @ np.array((dx, 0.25, -0.02))
+            fig.add(S.capsule(tuple(q), tuple(q + (0, 0.32, 0)), 0.05, 0.04), (0.30, 0.30, 0.33), k=0.0, layer='tool')
     # ---- 팔: 짧은 갈색 팔 + 크림 손 ----
     hands = {}
     for s in (-1, 1):
@@ -108,6 +123,10 @@ def build(fig, rng):
         hand = wr + (wr - el) / np.linalg.norm(wr - el) * 0.25
         fig.add(S.sphere(tuple(hand), 0.36), CREAM, k=0.12, layer='paw')
         hands[s] = hand
+        # 옷 신호 (펫 검토 v1: 흰 작업복이 맨몸처럼 읽힘): 손목 금 소매 테 + 윗팔 빨간 줄 2개 (키아트 턴어라운드)
+        fig.add(S.torus(tuple(wr - (wr - el) * 0.05), 0.37, 0.085, Rm=axis_R(wr - el)), Fg.GOLD, k=0.0, layer='trim', metal=g)
+        for t in (0.5, 0.7):
+            fig.add(S.torus(tuple(sh + (el - sh) * t), 0.43, 0.06, Rm=axis_R(el - sh)), STRIPE, k=0.0, layer='decal')
     # ---- 회로 기판 (오른손) ----
     hb = hands[1]
     Rb = S.rot(-12, -8, 8)
@@ -175,8 +194,8 @@ def build(fig, rng):
         return d - 0.38
     fig.paint(tipglow, SPINE_TIP, soft=0.35)
     fig.extra.emissive = True
-    for t in tips:
-        Fg._ellipsoid(fig.extra, tuple(t), (0.12, 0.12, 0.12), LED, 10, 6)
+    for t in tips[::2]:   # 펫 검토 v1: 끝마다 달면 촘촘한 반짝이 점처럼 보였다 → 하나 걸러, 조금 작게
+        Fg._ellipsoid(fig.extra, tuple(t), (0.1, 0.1, 0.1), LED, 10, 6)
     fig.extra.emissive = False
     # ---- 헤드셋: 크림 밴드, 진홍 쿠션, 금 테, 마이크 ----
     band = S.intersect(S.torus((0, hc[1] - 0.35, hc[2] + 0.1), 2.85, 0.19, Rm=S.rot(0, 90, 0)), lambda P: hc[1] - 0.05 - P[:, 1])

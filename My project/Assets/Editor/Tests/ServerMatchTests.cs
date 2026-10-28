@@ -82,4 +82,22 @@ public class ServerMatchTests
         Assert.AreEqual(2, old.cards.Count);             // 카드가 없으면 글만으로 만든다
         Assert.AreEqual("대화", old.cards[0].topic);
     }
+
+    [Test]
+    public void 함께_걷는_코스에_대략_칼로리와_난이도가_붙는다()
+    {
+        const string json = "{\"state\":\"meeting\",\"matchId\":\"m_1\",\"partner\":{\"nickname\":\"민지\"}," +
+            "\"course\":{\"recommendationId\":\"rec_1\",\"title\":\"조용한 가을산책\",\"stops\":[{\"buildingId\":\"b1\",\"name\":\"공학실험동\"}," +
+            "{\"buildingId\":\"b2\",\"name\":\"원예생물공학온실\"},{\"buildingId\":\"b3\",\"name\":\"노천극장\"}],\"totalDistanceM\":1500,\"totalMinutes\":21," +
+            "\"health\":{\"steps\":2140,\"kcalMin\":61,\"kcalMax\":86,\"intensity\":\"moderate\",\"intensityLabel\":\"보통 걷기\"}," +
+            "\"difficulty\":{\"level\":\"normal\",\"label\":\"중\",\"hills\":0}}}";
+        MatchState m = HttpMatchService.Parse(json);
+        Assert.AreEqual("3곳  ·  21분  ·  1.5km  ·  약 61~86kcal", MatchScreen.CourseSummary(m.course));
+        StringAssert.Contains("난이도 중", CourseDifficulty.Tag(m.course.difficulty, KucaTheme.Label));
+
+        // 예전 서버 (칼로리 · 난이도 없음): 붙이지 않는다
+        MatchState old = HttpMatchService.Parse(json.Replace("\"health\"", "\"x1\"").Replace("\"difficulty\"", "\"x2\""));
+        Assert.AreEqual("3곳  ·  21분  ·  1.5km", MatchScreen.CourseSummary(old.course));
+        Assert.AreEqual("", CourseDifficulty.Tag(old.course.difficulty, KucaTheme.Label));
+    }
 }

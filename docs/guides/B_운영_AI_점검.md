@@ -41,7 +41,7 @@
    - "wish 칸: 없음" 이면 배포가 안 된 것이다.
 3. 배포: `cd server && ./deploy-azure.sh`
    - Azure 에 `az login` 이 필요하다. `kuca-rg` 리소스 그룹 권한이 없으면 C 에게 부탁한다.
-4. 배포 뒤 다시 `./tools/prod_check.sh` 를 돌려 "wish 칸: 있음 (최신)" 인지 본다.
+4. 배포 뒤 다시 `./tools/prod_check.sh` 를 돌려 "talk 칸: 있음 (최신)" 인지 본다 (10/27 PR #91 이후 기준).
 
 ### 2. 키 · AI 사용률
 `ADMIN_KEY=<관리자 키> ./tools/prod_check.sh` 출력에서:

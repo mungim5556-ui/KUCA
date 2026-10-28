@@ -40,7 +40,8 @@ public record RecommendResult(
     RecommendWish? Wish = null,
     string? Why = null,
     HealthEstimate? Health = null,   // 코스 걸음 수 · 칼로리 범위 · 강도
-    CourseGoal? Goal = null);        // 로그인했으면 이번 주 목표와 이 코스의 관계          // 코스 전체를 이렇게 짠 이유 한 문장 (AI 또는 비중으로 만든 문장)
+    CourseGoal? Goal = null,         // 로그인했으면 이번 주 목표와 이 코스의 관계
+    CourseDifficulty? Difficulty = null);   // 난이도 하 · 중 · 상 (거리 · 오르막 장소 수)
 
 /// <summary>바람을 어떻게 이해했는지 (앱이 "이렇게 이해했어요" 로 보여 준다). Source: "ai" 또는 "fallback"</summary>
 /// <param name="Judgment">어떤 산책이 맞는지 판단과 이유 한 문장</param>

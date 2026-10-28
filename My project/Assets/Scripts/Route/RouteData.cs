@@ -105,6 +105,27 @@ public class RouteResult
     public HealthEstimate health;
     /// <summary>로그인했을 때만: 이 코스로 이번 주 목표(150분)에 얼마나 다가가는지 (note 가 비면 없음)</summary>
     public CourseGoal goal;
+    /// <summary>난이도 하 · 중 · 상 (서버가 거리 · 오르막 장소 수로 정함, 기기 추천이면 비어 있음)</summary>
+    public CourseDifficulty difficulty;
+}
+
+/// <summary>코스 난이도 (docs/api.md "건강"). level: easy · normal · hard, label: 하 · 중 · 상</summary>
+[Serializable]
+public class CourseDifficulty
+{
+    public string level, label;
+    /// <summary>가는 길에 힘든 오르막이 있는 장소 수</summary>
+    public int hills;
+
+    /// <summary>JsonUtility 는 빠진 객체도 빈 객체로 채우니 글자로 있는지 본다</summary>
+    public static bool Has(CourseDifficulty d) => d != null && !string.IsNullOrEmpty(d.label);
+
+    /// <summary>하 초록 · 중 회색 · 상 크림슨 (KucaTheme 색만)</summary>
+    public Color Color => level == "easy" ? KucaTheme.PrimaryDeep : level == "hard" ? KucaTheme.Crimson : KucaTheme.InkMuted;
+
+    /// <summary>제목 옆에 붙이는 작은 글자: "  난이도 중" (없으면 빈 글자)</summary>
+    public static string Tag(CourseDifficulty d, int size) =>
+        Has(d) ? $"  <size={size}><color=#{ColorUtility.ToHtmlStringRGB(d.Color)}>난이도 {d.label}</color></size>" : "";
 }
 
 /// <summary>걸음 수 · 칼로리 범위 · 강도 (docs/api.md "건강"). 걸음 센서가 없어 대략값이다</summary>
