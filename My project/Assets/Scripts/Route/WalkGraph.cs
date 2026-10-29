@@ -6,6 +6,7 @@ using UnityEngine;
 /// 캠퍼스 보행 길 그래프 (Resources/KUCA/WalkGraph.json, tools/route/build_walk_graph.py 가 OSM 에서 만든다).
 /// 두 점 사이를 실제 길(보행로 · 산책로 · 계단 · 캠퍼스 도로)을 따라 잇는 최단 경로를 찾는다 (A*).
 /// 좌표는 지도 월드 좌표 (1 유닛 = 1 m). 길에서 먼 점은 가장 가까운 길 노드까지 직선으로 붙인다.
+/// 사용자가 산책길 지도에 막힘으로 표시한 길 · 구역은 데이터에 아예 없고, 오르막 표시는 간선 무게(w)로 피한다.
 /// </summary>
 public static class WalkGraph
 {
@@ -14,11 +15,14 @@ public static class WalkGraph
     {
         public double[] lon, lat;
         public int[] a, b;
+        public float[] w;   // 간선 k 의 힘든 정도 (길이에 곱함, 평지 1 · 오르막 1.5 · 가파름 2.2). 없으면 모두 1
+        public int[] rest;  // 사용자가 표시한 쉼터에서 가장 가까운 노드
     }
 
     static Vector3[] pos;              // 노드의 월드 좌표
     static List<(int to, float cost)>[] links;
     static CampusMap builtFor;
+    static readonly List<Vector3> rests = new List<Vector3>();
 
     /// <summary>그래프가 준비됐는지 (지도와 데이터가 있어야 함)</summary>
     public static bool Ready(CampusMap map)
@@ -47,13 +51,21 @@ public static class WalkGraph
             int x = d.a[k], y = d.b[k];
             if (x < 0 || y < 0 || x >= pos.Length || y >= pos.Length)
                 continue;
-            float c = Flat(pos[x], pos[y]);
+            float c = Flat(pos[x], pos[y]) * (d.w != null && k < d.w.Length && d.w[k] >= 1f ? d.w[k] : 1f);
             links[x].Add((y, c));
             links[y].Add((x, c));
         }
+        rests.Clear();
+        if (d.rest != null)
+            foreach (int r in d.rest)
+                if (r >= 0 && r < pos.Length)
+                    rests.Add(pos[r]);
         builtFor = map;
         return true;
     }
+
+    /// <summary>사용자가 표시한 쉼터 (길 위 가장 가까운 점). 그래프가 없으면 빈 목록</summary>
+    public static IReadOnlyList<Vector3> Rests(CampusMap map) => Ready(map) ? rests : (IReadOnlyList<Vector3>)Array.Empty<Vector3>();
 
     static float Flat(Vector3 p, Vector3 q) => new Vector2(p.x - q.x, p.z - q.z).magnitude;
 

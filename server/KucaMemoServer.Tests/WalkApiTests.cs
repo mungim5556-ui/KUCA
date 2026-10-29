@@ -218,12 +218,12 @@ public class WalkApiTests : IDisposable
     public async Task 함께_걸으면_보너스를_받고_둘_다_끝내면_매칭이_완료된다()
     {
         (string a, string b, string walkId) = await MatchWalk();
-        JsonElement r = await Finish(a, walkId, 1200);
-        Assert.Equal(1200 / WalkRules.MetersPerDistanceXp + WalkRules.WalkXp + WalkRules.TogetherXp, I(r.GetProperty("reward"), "xp"));
+        JsonElement r = await Finish(a, walkId, 3000);   // 30분 코스를 다 걸은 거리 (코스는 고른 시간을 채운다)
+        Assert.Equal(3000 / WalkRules.MetersPerDistanceXp + WalkRules.WalkXp + WalkRules.TogetherXp, I(r.GetProperty("reward"), "xp"));
         Assert.Equal(1, I(r.GetProperty("progress"), "togetherWalks"));
         Assert.Equal("walking", S(await Send(HttpMethod.Get, "/api/match", b, null, HttpStatusCode.OK), "state"));
 
-        await Finish(b, walkId, 1100);
+        await Finish(b, walkId, 2900);
         JsonElement ended = await Send(HttpMethod.Get, "/api/match", a, null, HttpStatusCode.OK);
         Assert.Equal("ended", S(ended, "state"));
         Assert.Equal("completed", S(ended, "endReason"));

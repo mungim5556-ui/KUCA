@@ -124,7 +124,8 @@ public class RecommendApiTests : IDisposable
               {"buildingId":"way-474085534","reason":"조용해요"}]}
             ```
             """);
-        JsonElement r = await Ok(await Client(ai).PostAsJsonAsync("/api/recommendations", Body(30, ["photo"])));
+        // 60분: 노천극장 → 중앙도서관은 실제 길로 2 km 쯤이라 30분(걷기 24분)엔 다 못 든다 (Data/walk_meters.json)
+        JsonElement r = await Ok(await Client(ai).PostAsJsonAsync("/api/recommendations", Body(60, ["photo"])));
         Assert.Equal("ai", r.GetProperty("source").GetString());
         Assert.Equal("노을 산책", r.GetProperty("title").GetString());
         string[] ids = r.GetProperty("stops").EnumerateArray().Select(s => s.GetProperty("buildingId").GetString()!).ToArray();

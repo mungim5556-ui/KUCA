@@ -33,8 +33,8 @@ public static class RecommendRules
     public static int MetersPerMinute(string pace) => pace switch { "slow" => 60, "fast" => 90, _ => 75 };
     /// <summary>[가정] 직선거리 → 실제 걷는 거리 (길이 돌아가는 만큼)</summary>
     public const double PathFactor = 1.3;
-    /// <summary>[가정] 걷는 시간은 고른 시간의 이 비율까지 (나머지는 둘러보는 시간)</summary>
-    public const double WalkTimeRatio = 0.8;
+    /// <summary>[가정] 걷는 시간은 고른 시간의 이 비율까지 (나머지는 둘러보는 · 쉼터에서 쉬는 시간). 0.8 → 0.9: 고른 시간을 채우는 코스 (10/29 경로 300개 시험, 시간 맞음 234 → 251)</summary>
+    public const double WalkTimeRatio = 0.9;
     /// <summary>[가정] 출발점에서 이만큼(m) 안의 건물은 들를 곳으로 고르지 않는다 (서 있는 건물을 첫 장소로 고르던 문제, 10/27 시험)</summary>
     public const double StartGapM = 50;
     /// <summary>[가정] 들를 곳끼리 이만큼(m)은 떨어져야 한다 (40~80 m 붙은 세 건물이 한 코스에 몰리던 문제)</summary>
@@ -417,7 +417,10 @@ public partial class RouteRecommender(
         }
     }
 
-    /// <summary>점수가 높고 가까운 곳부터 잇는다. 걷는 시간이 예산을 넘는 곳은 건너뛴다.</summary>
+    /// <summary>
+    /// 점수가 높은 곳부터 잇되, 남은 걷는 시간을 남은 장소 수로 나눈 만큼 떨어진 곳을 좋게 본다 (고른 시간을 채우는 코스, 사용자 10/29:
+    /// "요청한 시간대의 루트로". 전엔 가까울수록 좋게 봐서 15분 코스가 4분 걷고 끝났다). 걷는 시간이 예산을 넘는 곳은 건너뛴다.
+    /// </summary>
     List<RecommendStop> Fallback(Plan plan, List<Candidate> candidates)
     {
         var left = new List<Candidate>(candidates);
@@ -427,12 +430,14 @@ public partial class RouteRecommender(
         {
             Candidate? best = null;
             double bestValue = double.MinValue;
+            double idealM = (plan.WalkBudgetMinutes - minutes) / (plan.MaxStops - order.Count) * plan.Speed;
             foreach (Candidate c in left)
             {
-                double d = Meters(atLat, atLon, c.Building.Lat, c.Building.Lon);
+                double d = PathM(atLat, atLon, c.Building);
                 if (minutes + LegMinutes(d, plan) > plan.WalkBudgetMinutes && !plan.Wants(c.Building.Id) || TooClose(order.Select(o => o.C), c))
                     continue;
-                double value = c.Score - d / RecommendRules.LegPenaltyM + (plan.Wants(c.Building.Id) ? 100 : 0);   // 말한 곳부터 (들를 곳 수가 차서 빠지지 않게)
+                double off = d < idealM ? idealM - d : (d - idealM) / 3;   // 너무 가까우면 시간이 남고, 멀면 들를 곳이 줄 뿐 (예산은 위에서 막음)
+                double value = c.Score - off / RecommendRules.LegPenaltyM + (plan.Wants(c.Building.Id) ? 100 : 0);   // 말한 곳부터 (들를 곳 수가 차서 빠지지 않게)
                 if (value > bestValue) (best, bestValue) = (c, value);
             }
             // 시간 안에 닿는 곳이 하나도 없으면 가장 가까운 한 곳만
@@ -442,7 +447,7 @@ public partial class RouteRecommender(
                 best = left.MinBy(c => c.Meters)!;
             }
             left.Remove(best);
-            minutes += LegMinutes(Meters(atLat, atLon, best.Building.Lat, best.Building.Lon), plan);
+            minutes += LegMinutes(PathM(atLat, atLon, best.Building), plan);
             order.Add((best, ""));
             (atLat, atLon) = (best.Building.Lat, best.Building.Lon);
         }
@@ -457,7 +462,7 @@ public partial class RouteRecommender(
     /// 고른 순서대로 거리·시간을 붙인다. 걷는 시간 예산을 넘는 곳 · 앞 장소와 붙어 있는 곳은 건너뛴다 (첫 곳은 남김).
     /// 이름을 말한 곳은 시간이 넘어도 남긴다 (말한 곳이 조용히 빠지던 문제, 10/27 시험)
     /// </summary>
-    static List<RecommendStop> Walk(Plan plan, List<(Candidate C, string Reason)> order, Func<Candidate, string, string> reasonOf)
+    List<RecommendStop> Walk(Plan plan, List<(Candidate C, string Reason)> order, Func<Candidate, string, string> reasonOf)
     {
         var stops = new List<RecommendStop>();
         var kept = new List<Candidate>();
@@ -466,23 +471,39 @@ public partial class RouteRecommender(
         {
             if (stops.Count == plan.MaxStops)
                 break;
-            double straight = Meters(atLat, atLon, c.Building.Lat, c.Building.Lon);
-            int leg = LegMinutes(straight, plan);
+            double path = PathM(atLat, atLon, c.Building);
+            int leg = LegMinutes(path, plan);
             bool wanted = plan.Wants(c.Building.Id);
             if (stops.Count > 0 && !wanted && (minutes + leg > plan.WalkBudgetMinutes || TooClose(kept, c)))
                 continue;
             kept.Add(c);
             minutes += leg;
             stops.Add(new RecommendStop(c.Building.Id, c.Spot?.Name ?? c.Building.Name ?? c.Building.Id,
-                Shorten(reasonOf(c, reason)), leg, (int)Math.Round(straight * RecommendRules.PathFactor),
+                Shorten(reasonOf(c, reason)), leg, (int)Math.Round(path),
                 c.Building.Lat, c.Building.Lon));
             (atLat, atLon) = (c.Building.Lat, c.Building.Lon);
         }
         return stops;
     }
 
-    static int LegMinutes(double straightMeters, Plan plan) =>
-        Math.Max(1, (int)Math.Ceiling(straightMeters * RecommendRules.PathFactor / plan.Speed));
+    static int LegMinutes(double pathMeters, Plan plan) => Math.Max(1, (int)Math.Ceiling(pathMeters / plan.Speed));
+
+    /// <summary>[가정] 이만큼(m) 안에 있으면 그 경희스팟에서 출발하는 것으로 본다</summary>
+    const double AtSpotM = 60;
+
+    /// <summary>
+    /// 걷는 거리 (m): 출발점(또는 앞 장소)이 경희스팟 근처면 앱 길 찾기와 같은 길로 잰 거리표 (Data/walk_meters.json, 막힌 숲길은 돌아감),
+    /// 아니면 직선 × PathFactor. 직선으로만 어림하면 막힌 길 너머 장소를 가깝다고 골라 앱에서 코스가 잘렸다 (10/29 경로 300개 시험)
+    /// </summary>
+    double PathM(double lat, double lon, Building to)
+    {
+        Building? from = null;
+        double gap = AtSpotM;
+        foreach (Spot s in spots.All)
+            if (buildings.Find(s.Id) is { } b && Meters(lat, lon, b.Lat, b.Lon) is var d && d <= gap)
+                (from, gap) = (b, d);
+        return from != null && spots.WalkMeters(from.Id, to.Id) is int m ? gap + m : Meters(lat, lon, to.Lat, to.Lon) * RecommendRules.PathFactor;
+    }
 
     /// <summary>이유를 고를 때 같은 값이면 앞쪽부터 (구체적인 말 먼저)</summary>
     static readonly string[] ReasonOrder = ["scenery", "quiet", "weather", "familiar", "novelty", "near"];

@@ -52,6 +52,8 @@ public class RouteWish
     public string source;
     /// <summary>어떤 산책이 맞는지 판단과 이유 한 문장</summary>
     public string judgment;
+    /// <summary>말에서 읽은 걸을 시간 (분, "1시간 반 걷고 싶어" → 90). 말하지 않았으면 0</summary>
+    public int minutes;
 }
 
 [Serializable]
@@ -66,6 +68,8 @@ public class RouteStop
     public double lat, lon;
     /// <summary>v2: 앞 장소(첫 곳은 지금 위치)에서 여기까지 걷는 거리 (m)</summary>
     public int distanceM;
+    /// <summary>앱이 붙인 쉼터 들르기면 쉬는 시간 (분), 아니면 0</summary>
+    public int restMinutes;
 }
 
 /// <summary>서버가 추천에 쓴 상황 (시간대 · 계절 · 날씨)</summary>

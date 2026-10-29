@@ -92,7 +92,7 @@ public class WishAndPlaceApiTests : IDisposable
     {
         SpotStore spots = new(new TestEnv());
         WalkWish w = WishRules.Parse("그늘지고 조용한 데 20분, 오르막은 빼고 천천히", spots);
-        Assert.Equal(15, w.Minutes);
+        Assert.Equal(20, w.Minutes);   // 말한 시간 그대로 (1시간까지)
         Assert.Contains("quiet", w.Tastes);
         Assert.Contains("그늘", w.Want);
         Assert.Contains("오르막", w.Avoid);
@@ -121,7 +121,7 @@ public class WishAndPlaceApiTests : IDisposable
             """{"minutes": 20, "tastes": ["quiet", "shopping"], "indoor": null, "afterMeal": true, "pace": "run", "want": ["그늘", "아주아주아주긴바라는모습"], "avoid": ["붐빔"], "wantPlaces": ["relation-8269760", "way-474531805"], "avoidPlaces": ["way-없음"]}""",
             "아무 말", spots);
         Assert.NotNull(w);
-        Assert.Equal(15, w!.Minutes);
+        Assert.Equal(20, w!.Minutes);
         Assert.Equal(["quiet"], w.Tastes);
         Assert.Null(w.Pace);
         Assert.True(w.AfterMeal);
@@ -132,6 +132,23 @@ public class WishAndPlaceApiTests : IDisposable
     }
 
     // ---------- 추천에 반영 ----------
+
+    [Theory]
+    [InlineData("20분만 걷고 싶어", 20, false)]
+    [InlineData("45분 산책", 45, false)]
+    [InlineData("2시간 걷고 싶어", 60, true)]
+    [InlineData("한 시간 반 걸을래", 60, true)]
+    public async Task 말한_시간은_1시간까지_그대로_넘으면_1시간_코스와_자유_산책을_권한다(string text, int minutes, bool free)
+    {
+        HttpClient client = Server().CreateClient();
+        JsonElement r = await Recommend(client, Body(text, minutes: 15));
+        JsonElement wish = r.GetProperty("wish");
+        Assert.Equal(minutes, wish.GetProperty("minutes").GetInt32());
+        Assert.Equal(free, wish.GetProperty("summary").GetString()!.Contains("자유 산책"));
+        Assert.Equal(free, wish.GetProperty("judgment").GetString()!.Contains("자유 산책"));
+        Assert.Contains($"{minutes}분", r.GetProperty("title").GetString());
+        Assert.InRange(r.GetProperty("totalMinutes").GetInt32(), 1, minutes);
+    }
 
     [Fact]
     public async Task AI_가_없어도_바람을_해석해_돌려주고_뺄_곳은_뺀다()
@@ -314,7 +331,7 @@ public class WishAndPlaceApiTests : IDisposable
         notices.Add("n3", "지난 공사", "10월 1일", "https://example.com/3", "끝남", "2026-09-20", [Library]);
         notices.AddEvent("n3", [Library], NoticeKinds.Closure, "2026-10-01", "2026-10-01");
 
-        JsonElement r = await Recommend(client, Body(null, candidates: [Pe, Theater, Library]));
+        JsonElement r = await Recommend(client, Body(null, minutes: 60, candidates: [Pe, Theater, Library]));   // 노천극장 ↔ 도서관이 실제 길로 멀어 둘 다 들르려면 60분
         string[] ids = StopIds(r);
         Assert.DoesNotContain(Pe, ids);
         Assert.Contains(Library, ids);   // 지난 통제는 상관없음
@@ -508,6 +525,128 @@ public class WishAndPlaceApiTests : IDisposable
         string[] ids = StopIds(await Recommend(Server().CreateClient(), Body("노천극장 들렀다가 공학관 가고 싶어", 15)));
         Assert.Contains(Theater, ids);
         Assert.Contains(Engineering, ids);
+    }
+
+    // ---------- 무작위 문장 3000개 시험 (10/29) ----------
+
+    [Theory]
+    [InlineData("삼십 분 부탁해", "30분")]
+    [InlineData("십오 분 걸어볼래", "15분")]
+    [InlineData("반 시간 산책", "30분")]
+    [InlineData("두 시간 알려줘", "2시간 중 코스는 1시간 · 나머지는 자유 산책")]
+    [InlineData("1시간 30분 걷고 싶어", "1시간 30분 중 코스는 1시간 · 나머지는 자유 산책")]
+    [InlineData("한 시간 반 걷자", "1시간 30분 중 코스는 1시간")]
+    [InlineData("45분 걷고 싶어", "45분")]
+    [InlineData("1시간 걷기", "60분")]
+    [InlineData("5분만 걷자", "10분")]
+    [InlineData("0.5시간 산책", "30분")]
+    [InlineData("15-20분 산책", "20분")]
+    [InlineData("1000분 걷기", "16시간 40분 중 코스는 1시간 · 나머지는 자유 산책")]
+    [InlineData("중도 가고 싶어", "중앙도서관 들르기")]
+    [InlineData("노천 극장 쪽으로 걷자", "노천극장 들르기")]
+    [InlineData("학생 회관 들러서 산책", "학생회관 들르기")]
+    [InlineData("공대 꼭 넣어줘", "공학관 들르기")]
+    [InlineData("공학관 안 들르고 30분 걷자", "공학관 피하기")]
+    [InlineData("천문 대 는 말고 걷고 싶어", "천문대 피하기")]
+    [InlineData("사람 없는 데 돌고 싶어", "조용한 곳")]
+    [InlineData("후다닥 돌고 싶어", "빠르게")]
+    [InlineData("허리 아파서 살살", "천천히")]
+    [InlineData("만보 채우고 싶어", "운동 삼아")]
+    public void 말_찾기가_놓치던_시간_장소_부정어를_알아듣는다(string wish, string part)
+    {
+        WalkWish w = WishRules.Parse(wish, new SpotStore(new TestEnv()));
+        Assert.Null(w.Unclear);
+        Assert.Contains(part, w.Summary);
+    }
+
+    [Fact]
+    public void 긴_이름의_일부나_모르는_말_너머로_장소와_부정어가_새지_않는다()
+    {
+        SpotStore spots = new(new TestEnv());
+        Assert.Equal(["way-474085542"], WishRules.Parse("국제학관 가자", spots).WantPlaces);              // 학관(학생회관) 아님
+        Assert.Equal(["way-474521123"], WishRules.Parse("예술디자인대학 도예관 가자", spots).WantPlaces);   // 예술디자인대학 아님
+        WalkWish w = WishRules.Parse("조용한 데 학관 빼줘", spots);
+        Assert.Contains("한산함", w.Want);
+        Assert.Equal([Union], w.AvoidPlaces);
+        Assert.True(WishRules.Parse("바깥은 싫어 30분 걷기", spots).Indoor);
+        Assert.False(WishRules.Parse("비 와도 바깥으로 걷고 싶어", spots).Indoor);
+    }
+
+    [Theory]
+    [InlineData("그늘 좋은데 그늘 싫어")]
+    [InlineData("노천극장 가자 노천극장 말고")]
+    [InlineData("실내로 바깥으로 산책")]
+    [InlineData("0분 걷기")]
+    [InlineData("-10분 산책")]
+    [InlineData("마이너스 30분 걷기")]
+    [InlineData("기숙사 가자")]
+    [InlineData("코스요리 먹고 싶다")]
+    [InlineData("전화 걸어줘")]
+    [InlineData("돌아가신 할머니가 보고 싶어")]
+    [InlineData("아무 말이나 해봐")]
+    public async Task 코스가_나오던_모순_0분_출입제한_관계없는_말은_422(string wish)
+    {
+        var res = await Server().CreateClient().PostAsJsonAsync("/api/recommendations", Body(wish));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, res.StatusCode);
+        Assert.Contains("다시 입력해 주세요", (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+    }
+
+    // ---------- 무작위 문장 3000개 2회차 (seed 4100, 10/29) ----------
+
+    [Theory]
+    [InlineData("점심시간 30분 걷자", "30분")]                       // 시간 앞 낱말(점심시간 · 쉬는 시간)은 걷는 시간이 아니다
+    [InlineData("쉬는 시간 10분 동안 산책", "10분")]
+    [InlineData("2시 10분에 30분 걷기", "30분")]                     // 2시 10분은 시각
+    [InlineData("30min 산책", "30분")]
+    [InlineData("1h 걷자", "60분")]
+    [InlineData("45 mins 걷기", "45분")]
+    [InlineData("1.5h walk 하자", "1시간 30분 중 코스는 1시간")]
+    [InlineData("한 시간 10분 산책", "1시간 10분 중 코스는 1시간")]
+    [InlineData("반나절 걷고 싶어", "4시간 중 코스는 1시간")]
+    [InlineData("그냥이십오분 걷자", "25분")]
+    [InlineData("음두시간산책", "2시간 중 코스는 1시간")]
+    [InlineData("하루 종일 앉아 있었더니 찌뿌둥해서 30분 걷기", "30분")]   // 하루 종일 앉아 → 걷는 시간 아님
+    [InlineData("도서관 말구 걷자", "중앙도서관 피하기")]
+    [InlineData("도서관은 패스 산책", "중앙도서관 피하기")]
+    [InlineData("도서관 안 갈래 산책", "중앙도서관 피하기")]
+    [InlineData("도서관 쪽은 가지 말자 걷기", "중앙도서관 피하기")]
+    [InlineData("도서관만 아니면 돼 산책", "중앙도서관 피하기")]
+    [InlineData("천문대는 이미 가봤으니까 빼줘 걷자", "천문대 피하기")]
+    [InlineData("경사 없는 길로 걷자", "오르막 피하기")]
+    [InlineData("깁스해서 걷기", "천천히")]
+    [InlineData("느릿느릿 산책", "천천히")]
+    [InlineData("여유있게 walk 하자", "천천히")]
+    [InlineData("파워워킹으로 걷기", "빠르게")]
+    [InlineData("인적 드문 곳", "조용한 곳")]
+    [InlineData("예디 들러줘", "예술디자인대학 들르기")]
+    [InlineData("멀티 앞에서 쉬고 싶어", "멀티미디어교육관 들르기")]
+    public void 말_찾기가_2회차에_놓치던_시간_부정어_빠르기_별명을_알아듣는다(string wish, string part)
+    {
+        WalkWish w = WishRules.Parse(wish, new SpotStore(new TestEnv()));
+        Assert.Null(w.Unclear);
+        Assert.Contains(part, w.Summary);
+    }
+
+    [Fact]
+    public void 다친_몸은_오르막을_빼고_휠체어는_계단도_빼며_붙여_쓴_메이트도_안다()
+    {
+        SpotStore spots = new(new TestEnv());
+        Assert.Contains("오르막", WishRules.Parse("발목 다쳐서 산책", spots).Avoid);
+        Assert.Equal(["오르막", "계단"], WishRules.Parse("휠체어라서 산책", spots).Avoid.Intersect(["오르막", "계단"]));
+        Assert.True(WishRules.IsTalk("후배랑함께걷고싶어"));
+    }
+
+    [Theory]
+    [InlineData("빠르게 느리게")]
+    [InlineData("도서관 꼭 가고 도서관은 빼")]
+    [InlineData("커피 사줘")]
+    [InlineData("사진 보정해줘")]
+    [InlineData("몰카 찍기 좋은 곳")]
+    [InlineData("누구 패러 가자")]
+    public async Task 코스가_나오던_모순_심부름_해로운_말은_422(string wish)
+    {
+        var res = await Server().CreateClient().PostAsJsonAsync("/api/recommendations", Body(wish));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, res.StatusCode);
     }
 
     sealed class TestEnv : Microsoft.AspNetCore.Hosting.IWebHostEnvironment

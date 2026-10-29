@@ -67,9 +67,9 @@ public class WalkService(WalkStore store, RecommendationStore recommendations, M
         RecommendationStore.Saved? rec = null;
         if (recId != null && (rec = recommendations.Find(recId)) == null)
             throw new WalkException(404, "추천을 찾을 수 없어요.");
-        int? minutes = body?.Minutes ?? rec?.Minutes;
-        if (minutes != null && !RecommendRules.AllowedMinutes.Contains(minutes.Value))
+        if (body?.Minutes is int asked && !RecommendRules.AllowedMinutes.Contains(asked))
             throw new WalkException(400, "minutes 는 15, 30, 60 중 하나여야 합니다.");
+        int? minutes = body?.Minutes ?? rec?.Minutes;   // 추천의 시간은 말로 정한 10 ~ 60분일 수 있다
 
         string id = "w_" + Guid.NewGuid().ToString("N");
         DateTimeOffset now = clock.GetUtcNow();

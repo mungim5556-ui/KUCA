@@ -64,7 +64,8 @@ public partial class RoutePlanner : MonoBehaviour
             {
                 var set = new HashSet<string>();
                 for (int i = 0; i < result.stops.Count - (hasEnd ? 1 : 0); i++)
-                    set.Add(result.stops[i].buildingId);
+                    if (result.stops[i].restMinutes == 0)
+                        set.Add(result.stops[i].buildingId);
                 return set;
             }
         }
@@ -209,7 +210,7 @@ public partial class RoutePlanner : MonoBehaviour
     }
 
     List<PlaceNotice> NoticesOf(string buildingId) =>
-        buildingId != null && noticesByPlace.TryGetValue(buildingId, out var l) ? l : new List<PlaceNotice>();
+        !string.IsNullOrEmpty(buildingId) && noticesByPlace.TryGetValue(buildingId, out var l) ? l : new List<PlaceNotice>();
 
     /// <summary>취향 체크리스트의 걷는 속도 (없으면 보통)</summary>
     static string Pace
@@ -430,6 +431,9 @@ public partial class RoutePlanner : MonoBehaviour
             return null;
         result.stops = kept;
         Trace(o);
+        // 말로 시간을 정했으면 (서버도 그 시간으로 짰다) 고른 시간 칩 대신 그 시간에 맞춘다
+        if (result.wish != null && result.wish.minutes > 0)
+            mins = result.wish.minutes;
         // 시간 안에 못 걸으면 (목적지를 빼고) 뒤쪽 장소부터 줄인다
         bool hasEnd = o.hasEnd = destSpot != null || o.returns;
         int minStops = o.returns ? 2 : 1;   // 한 바퀴 코스는 들를 곳 1 + 돌아오기
@@ -441,7 +445,51 @@ public partial class RoutePlanner : MonoBehaviour
             o.stops.RemoveAt(drop);
             Trace(o);
         }
+        AddRest(o, mins);
         return o;
+    }
+
+    const int RestMinMinutes = 2, RestMaxMinutes = 5;   // 쉼터에서 쉬는 시간 (분): 고른 시간에 모자라는 만큼, 이 범위에서
+    const float RestDetour = 150f;    // 쉼터를 들르려고 더 걸어도 되는 거리 (m). 코스가 고른 시간보다 짧으면 모자란 시간만큼 더
+    const float RestFromMeters = 600f; // 이보다 짧은 코스는 쉬지 않는다 (m, 보통 걸음 약 8분)
+
+    /// <summary>
+    /// 사용자가 산책길 지도에 표시한 쉼터가 코스에서 가까우면 '잠깐 쉬어가기' 를 한 번 넣는다 (돌아가는 길 150 m 안,
+    /// 코스가 고른 시간보다 짧으면 모자란 시간만큼 더 돌아가도 됨 — 사용자 10/29 "근처 쉼터까지 가서 좀 쉬는 느낌으로").
+    /// 앞 장소와 다음 장소 사이에서 덜 돌아가는 쉼터 · 자리를 고르고, 쉬는 시간은 고른 시간에 모자라는 만큼 (2 ~ 5분).
+    /// </summary>
+    void AddRest(Option o, int mins)
+    {
+        IReadOnlyList<Vector3> rests = WalkGraph.Rests(Map);
+        if (rests.Count == 0 || o.meters < RestFromMeters)
+            return;
+        var way = new List<Vector3> { StartPosition };
+        way.AddRange(o.stops);
+        float best = Mathf.Max(RestDetour, (mins - o.walkMinutes) * RouteMath.MetersPerMinute(Pace));
+        int at = -1;
+        Vector3 spot = default;
+        for (int i = 0; i + 1 < way.Count; i++)
+        {
+            float leg = WalkGraph.Length(WalkGraph.Path(Map, way[i], way[i + 1]));
+            foreach (Vector3 r in rests)
+            {
+                if (Flat(r, way[i]) < ReturnRadius || Flat(r, way[i + 1]) < ReturnRadius)
+                    continue; // 출발지 · 장소 바로 옆이면 그곳에서 쉬면 된다
+                float extra = WalkGraph.Length(WalkGraph.Path(Map, way[i], r)) + WalkGraph.Length(WalkGraph.Path(Map, r, way[i + 1])) - leg;
+                if (extra < best) { best = extra; at = i; spot = r; }
+            }
+        }
+        if (at < 0 || o.meters + best > Budget(mins) * 1.25f)
+            return;
+        int rest = Mathf.Clamp(mins - RouteMath.MinutesFor(o.meters + best, Pace), RestMinMinutes, RestMaxMinutes);
+        CampusMap.Vector2d geo = Map != null ? Map.WorldToGeo(spot) : default;
+        o.result.stops.Insert(at, new RouteStop
+        {
+            buildingId = "", name = "잠깐 쉬어가기", reason = $"쉼터에서 {rest}분쯤 숨 돌리고 가요",
+            lat = geo.y, lon = geo.x, restMinutes = rest,
+        });
+        o.stops.Insert(at, spot);
+        Trace(o);
     }
 
     /// <summary>출발 → 들를 곳을 길을 따라 잇고, 장소별 · 전체 거리와 시간을 길 기준으로 다시 센다.</summary>
@@ -466,6 +514,8 @@ public partial class RoutePlanner : MonoBehaviour
         }
         o.meters = Mathf.RoundToInt(total);
         o.walkMinutes = RouteMath.MinutesFor(total, Pace);
+        foreach (RouteStop s in o.result.stops)
+            o.walkMinutes += s.restMinutes;
         o.result.totalDistanceM = o.meters;
         o.result.totalMinutes = o.walkMinutes;
     }
@@ -620,12 +670,16 @@ public partial class RoutePlanner : MonoBehaviour
             else
             {
                 KyungHeeSpot spot = SpotOf(active.result.stops[i].buildingId);
-                if (spot == null || !spot.InRange) continue;
+                bool here = spot != null ? spot.InRange
+                    : active.result.stops[i].restMinutes > 0 && Flat(PlayerPosition, active.stops[i]) < ReturnRadius;
+                if (!here) continue;
             }
             done[i] = true;
             RefreshGuide();
             bool finished = done.TrueForAll(x => x);
-            Toast(finished ? "코스 완주! 수고했어요" : $"{active.result.stops[i].name} 도착!");
+            Toast(finished ? "코스 완주! 수고했어요"
+                : active.result.stops[i].restMinutes > 0 ? $"쉼터예요. {active.result.stops[i].restMinutes}분쯤 쉬었다 가요"
+                : $"{active.result.stops[i].name} 도착!");
             if (finished)
             {
                 Quests.Report("course_done");

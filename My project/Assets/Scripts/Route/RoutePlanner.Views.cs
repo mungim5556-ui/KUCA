@@ -339,7 +339,7 @@ public partial class RoutePlanner
         // 문장을 어떻게 읽었는지만 한 줄 (틀렸으면 고쳐 적게). 코스 설명은 길어서 뺌 (사용자 결정 10/27)
         if (!string.IsNullOrEmpty(o.result.wish?.summary))
             UIKit.Paragraph(chooserCards, $"이렇게 이해했어요  ·  {Escape(o.result.wish.summary)}", KucaTheme.Label, KucaTheme.PrimaryDeep);
-        int visits = o.result.stops.Count - (o.returns ? 1 : 0);
+        int visits = o.result.stops.FindAll(st => st.restMinutes == 0).Count - (o.returns ? 1 : 0);
         UIKit.StatRow(chooserCards, (RouteMath.Distance(o.meters), "거리"), ($"{o.walkMinutes}분", "걸리는 시간"), ($"{visits}곳", "들를 곳"));
         ShowCourseHealth(o);
 
@@ -389,7 +389,8 @@ public partial class RoutePlanner
         r.courseWhy = o.result.why;
         int visits = o.result.stops.Count - (o.returns ? 1 : 0);
         for (int i = 0; i < visits && r.places.Count < 10; i++)
-            r.places.Add(o.result.stops[i].name);
+            if (o.result.stops[i].restMinutes == 0)
+                r.places.Add(o.result.stops[i].name);
         return r;
     }
 

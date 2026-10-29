@@ -157,8 +157,8 @@ public class StatsApiTests : IDisposable
         await Send(HttpMethod.Post, $"/api/match/{id}/arrived", a, new { buildingId = spot }, HttpStatusCode.OK);
         string walkId = (await Send(HttpMethod.Post, $"/api/match/{id}/arrived", b, new { buildingId = spot }, HttpStatusCode.OK))
             .GetProperty("walkId").GetString()!;
-        await Send(HttpMethod.Post, $"/api/walks/{walkId}/finish", a, new { distanceM = 900, durationSec = 1500 }, HttpStatusCode.OK);
-        await Send(HttpMethod.Post, $"/api/walks/{walkId}/finish", b, new { distanceM = 900, durationSec = 1500 }, HttpStatusCode.OK);
+        await Send(HttpMethod.Post, $"/api/walks/{walkId}/finish", a, new { distanceM = 3000, durationSec = 2400 }, HttpStatusCode.OK);
+        await Send(HttpMethod.Post, $"/api/walks/{walkId}/finish", b, new { distanceM = 3000, durationSec = 2400 }, HttpStatusCode.OK);
 
         await Send(HttpMethod.Post, "/api/match/queue", lonely, new { minutes = 60, buildingId = StudentHall }, HttpStatusCode.OK);
         clock.Now += MatchRules.WaitLimit + TimeSpan.FromSeconds(1);
